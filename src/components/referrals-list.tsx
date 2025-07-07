@@ -16,6 +16,8 @@ interface ReferralsListProps {
     };
 }
 
+const POINTS_PER_REFERRAL = 100;
+
 export default function ReferralsList({ referrals }: ReferralsListProps) {
     const { count = 0, referredUsers = [] } = referrals || {};
     const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
@@ -25,14 +27,35 @@ export default function ReferralsList({ referrals }: ReferralsListProps) {
         <div className="w-full max-w-5xl mx-auto space-y-6">
             <h2 className="text-3xl font-bold flex items-center gap-3"><Users className="h-8 w-8 text-accent"/> Your Referrals</h2>
             
-            <Card className="bg-secondary/30 border-border/50">
+             <Card className="bg-secondary/30 border-border/50">
                 <CardHeader>
-                    <CardTitle>Total Referrals</CardTitle>
+                    <CardTitle>How Referrals Work</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-4xl font-bold">{count}</p>
+                    <p className="text-muted-foreground leading-relaxed">
+                        Share your unique referral code with friends. When they sign up using your code and activate their account, you'll receive <strong>{POINTS_PER_REFERRAL} bonus points</strong>, and they'll get a <strong>10 point</strong> head start!
+                    </p>
                 </CardContent>
             </Card>
+
+            <div className="grid md:grid-cols-2 gap-6">
+                 <Card className="bg-secondary/30 border-border/50">
+                    <CardHeader>
+                        <CardTitle>Total Referrals</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold">{count}</p>
+                    </CardContent>
+                </Card>
+                 <Card className="bg-secondary/30 border-border/50">
+                    <CardHeader>
+                        <CardTitle>Referral Bonus Earned</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold">{new Intl.NumberFormat().format(count * POINTS_PER_REFERRAL)}</p>
+                    </CardContent>
+                </Card>
+            </div>
 
             <Card className="bg-secondary/30 border-border/50">
                 <CardHeader>

@@ -308,7 +308,7 @@ export default function Dashboard() {
                 <Card className="bg-secondary/30 border-border/50">
                     <CardHeader>
                         <CardTitle className="text-2xl">Enter Referral Code</CardTitle>
-                        <CardDescription>You must enter a valid referral code to proceed.</CardDescription>
+                        <CardDescription>Enter a referral code to get a 10 point bonus and activate your account. A code is required to proceed.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <Input
