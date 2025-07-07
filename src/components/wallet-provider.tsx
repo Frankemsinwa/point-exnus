@@ -1,15 +1,15 @@
 "use client";
 
-import React, { FC, useMemo } from "react";
+import React, { FC, useMemo, useState, useEffect } from "react";
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork, type Wallet } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
-import { MobileWalletAdapter } from "@solana-mobile/wallet-adapter-mobile";
+import { SolanaMobileWalletAdapter } from "@solana-mobile/wallet-adapter-mobile";
 import { clusterApiUrl } from "@solana/web3.js";
 
 export const WalletProvider: FC<{ children: React.ReactNode }> = ({
@@ -21,29 +21,31 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
   // You can also provide a custom RPC endpoint.
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
-  const wallets = useMemo(
-    () => [
-      /**
-       * Wallets that implement the new wallet standard may be found here:
-       * @see https://github.com/solana-labs/wallet-standard
-       *
-       * Alternatively, you can support specific wallets by adding their adapters:
-       * @see https://github.com/solana-labs/wallet-adapter#wallets
-       *
-       * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
-       * for wallets that have mobile apps (like Phantom and Solflare), as well
-       * as the MobileWalletAdapter for wallets that support the mobile standard.
-       */
-      new MobileWalletAdapter({
+  const [wallets, setWallets] = useState<Wallet[]>([]);
+
+  useEffect(() => {
+    /**
+     * Wallets that implement the new wallet standard may be found here:
+     * @see https://github.com/solana-labs/wallet-standard
+     *
+     * Alternatively, you can support specific wallets by adding their adapters:
+     * @see https://github.com/solana-labs/wallet-adapter#wallets
+     *
+     * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
+     * for wallets that have mobile apps (like Phantom and Solflare), as well
+     * as the SolanaMobileWalletAdapter for wallets that support the mobile standard.
+     */
+    const walletAdapters = [
+      new SolanaMobileWalletAdapter({
         appIdentity: { name: "Exnus Points" },
         cluster: network,
       }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [network]
-  );
+    ];
+    setWallets(walletAdapters);
+  }, [network]);
+
 
   return (
     <ConnectionProvider endpoint={endpoint}>
