@@ -10,9 +10,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Copy, Users, Star, Gift, Twitter, Send, CheckCircle2, Loader2 } from "lucide-react";
+import { Copy, Users as UsersIcon, Star, Gift, Twitter, Send, CheckCircle2, Loader2, LayoutDashboard, Trophy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import DashboardContent from "./dashboard-content";
+import Leaderboard from "./leaderboard";
+import ReferralsList from "./referrals-list";
 
 const POINTS_PER_REFERRAL = 1000;
 const JOIN_BONUS_FOR_REFEREE = 500;
@@ -27,6 +30,7 @@ const TASKS = {
 } as const;
 
 type TaskName = keyof typeof TASKS;
+type Page = 'dashboard' | 'leaderboard' | 'referrals';
 
 const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -70,7 +74,8 @@ const formatTime = (seconds: number) => {
 
 export default function Dashboard() {
   const [basePoints, setBasePoints] = useState(0);
-  const [referrals, setReferrals] = useState(0);
+  const [referrals, setReferrals] = useState({ count: 0, referredUsers: [] });
+  const [animatedReferralCount, setAnimatedReferralCount] = useState(0);
   const [referralCode, setReferralCode] = useState("");
   const { toast } = useToast();
   const { publicKey, signMessage } = useWallet();
@@ -84,6 +89,8 @@ export default function Dashboard() {
   const [minedPoints, setMinedPoints] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isClaiming, setIsClaiming] = useState(false);
+  
+  const [activePage, setActivePage] = useState<Page>('dashboard');
 
 
   const handleActivateMining = async () => {
@@ -134,7 +141,7 @@ export default function Dashboard() {
       const newReferralCode = publicKey.toBase58().substring(0, 8).toUpperCase();
       userData = {
         points: INITIAL_POINTS,
-        referrals: 0,
+        referrals: { count: 0, referredUsers: [] },
         referralCode: newReferralCode,
         tasksCompleted: { x: false, telegram: false, discord: false },
         miningActivated: false,
@@ -154,7 +161,15 @@ export default function Dashboard() {
             try {
               let referrerData = JSON.parse(localStorage.getItem(key) || "null");
               if (referrerData && referrerData.referralCode === pendingRefCode) {
-                referrerData.referrals += 1;
+                // Ensure new referral structure
+                if (!referrerData.referrals || typeof referrerData.referrals !== 'object') {
+                    referrerData.referrals = { count: 0, referredUsers: [] };
+                }
+                referrerData.referrals.count = (referrerData.referrals.count || 0) + 1;
+                referrerData.referrals.referredUsers.push({
+                    wallet: publicKey.toBase58(),
+                    joinDate: new Date().toISOString(),
+                });
                 referrerData.points += POINTS_PER_REFERRAL;
                 localStorage.setItem(key, JSON.stringify(referrerData));
                 break;
@@ -169,6 +184,10 @@ export default function Dashboard() {
       localStorage.setItem(userKey, JSON.stringify(userData));
     }
 
+    // Migration for old data structure
+    if (typeof userData.referrals === 'number') {
+        userData.referrals = { count: userData.referrals, referredUsers: [] };
+    }
     if (userData.tasksCompleted === undefined) userData.tasksCompleted = { x: false, telegram: false, discord: false };
     if (userData.miningActivated === undefined) userData.miningActivated = false;
     if (userData.miningSessionStart === undefined) userData.miningSessionStart = null;
@@ -176,7 +195,8 @@ export default function Dashboard() {
 
     setReferralCode(userData.referralCode);
     animateValue(setBasePoints, userData.points, 1000);
-    animateValue(setReferrals, userData.referrals, 1200);
+    setReferrals(userData.referrals);
+    animateValue(setAnimatedReferralCount, userData.referrals.count, 1200);
     setTasksCompleted(userData.tasksCompleted);
     setMiningActivated(userData.miningActivated);
     if(userData.miningActivated && userData.miningSessionStart) {
@@ -269,144 +289,80 @@ export default function Dashboard() {
     });
   };
 
-  const totalPoints = basePoints + (referrals * POINTS_PER_REFERRAL);
+  const totalPoints = basePoints;
+
+  const renderContent = () => {
+    switch(activePage) {
+        case 'dashboard':
+            return (
+                <DashboardContent
+                    miningActivated={miningActivated}
+                    tasksCompleted={tasksCompleted}
+                    verifyingTask={verifyingTask}
+                    TASK_ICONS={TASK_ICONS}
+                    TASKS={TASKS}
+                    handleVerifyTask={handleVerifyTask}
+                    minedPoints={minedPoints}
+                    MINING_REWARD={MINING_REWARD}
+                    timeRemaining={timeRemaining}
+                    formatTime={formatTime}
+                    totalPoints={totalPoints}
+                    referralCode={referralCode}
+                    handleCopy={handleCopy}
+                    referralCount={animatedReferralCount}
+                    POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
+                />
+            );
+        case 'leaderboard':
+            return <Leaderboard POINTS_PER_REFERRAL={POINTS_PER_REFERRAL} />;
+        case 'referrals':
+            return <ReferralsList referrals={referrals} />;
+        default:
+            return null;
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-4 sm:p-6 md:p-8">
-      <div className="w-full max-w-5xl mx-auto">
-        <header className="flex justify-between items-center mb-8 w-full">
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600">
-            Exnus Points
-          </h1>
-          <WalletMultiButton />
-        </header>
-
-        {!miningActivated ? (
-            <div className="w-full text-center mt-8">
-                <h2 className="text-4xl font-bold mb-4">Almost there!</h2>
-                <p className="text-muted-foreground mb-12">Complete these tasks to activate your account and start mining points.</p>
-                <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                    {(Object.keys(TASKS) as TaskName[]).map((taskName) => {
-                        const task = TASKS[taskName];
-                        const isCompleted = tasksCompleted[taskName];
-                        const isVerifying = verifyingTask === taskName;
-                        const isDisabled = isCompleted || !!verifyingTask;
-
-                        return (
-                            <Card key={taskName} className="bg-secondary/30 border-border/50 text-center flex flex-col">
-                                <CardHeader>
-                                    <div className="mx-auto bg-accent/20 text-accent p-3 rounded-full w-fit">
-                                        {TASK_ICONS[taskName]}
-                                    </div>
-                                    <CardTitle className="text-2xl pt-4">{task.name}</CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex-grow flex flex-col justify-end">
-                                    <Button onClick={() => handleVerifyTask(taskName)} disabled={isDisabled}>
-                                        {isVerifying ? (
-                                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
-                                        ) : isCompleted ? (
-                                            <><CheckCircle2 className="mr-2 h-5 w-5" /> Completed</>
-                                        ) : (
-                                            task.cta
-                                        )}
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
+    <SidebarProvider>
+        <Sidebar>
+            <SidebarHeader>
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600 px-2">
+                    Exnus Points
+                </h1>
+            </SidebarHeader>
+            <SidebarContent>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton onClick={() => setActivePage('dashboard')} isActive={activePage === 'dashboard'} tooltip="Dashboard">
+                            <LayoutDashboard />
+                            <span>Dashboard</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton onClick={() => setActivePage('leaderboard')} isActive={activePage === 'leaderboard'} tooltip="Leaderboard">
+                            <Trophy />
+                            <span>Leaderboard</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton onClick={() => setActivePage('referrals')} isActive={activePage === 'referrals'} tooltip="Referrals">
+                            <UsersIcon />
+                            <span>Referrals</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarContent>
+        </Sidebar>
+        <SidebarInset>
+            <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-4 sm:p-6 md:p-8">
+                <header className="flex justify-between items-center mb-8 w-full max-w-5xl mx-auto">
+                    <SidebarTrigger className="md:hidden"/>
+                    <div className="hidden md:block w-7"></div>
+                    <WalletMultiButton />
+                </header>
+                {renderContent()}
             </div>
-        ) : (
-            <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">
-                <CardHeader>
-                    <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
-                        <Loader2 className="text-accent animate-spin" />
-                        Mining Session
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col gap-4">
-                        <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2">
-                            <p className="text-3xl font-bold text-primary">
-                                {minedPoints.toFixed(4)} <span className="text-xl text-accent">PTS Mined</span>
-                            </p>
-                            <p className="text-lg text-muted-foreground">
-                                Time Remaining: {formatTime(timeRemaining)}
-                            </p>
-                        </div>
-                        <Progress value={(minedPoints / MINING_REWARD) * 100} className="w-full h-2" />
-                        <p className="text-sm text-center text-muted-foreground">
-                            You are mining {MINING_REWARD} PTS over 24 hours. Points will be added automatically.
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">
-                <CardHeader>
-                <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
-                    <Gift className="text-accent" />
-                    Your Total Points
-                </CardTitle>
-                </CardHeader>
-                <CardContent>
-                <p className="text-5xl font-bold text-primary">
-                    {new Intl.NumberFormat().format(totalPoints)}{" "}
-                    <span className="text-3xl text-accent">PTS</span>
-                </p>
-                </CardContent>
-            </Card>
-
-            <Card className="md:col-span-2 bg-secondary/30 border-border/50">
-                <CardHeader>
-                <CardTitle className="text-lg font-medium text-muted-foreground">
-                    Your Referral Link
-                </CardTitle>
-                </CardHeader>
-                <CardContent>
-                <div className="flex items-center space-x-2 bg-background/50 p-3 rounded-lg border border-dashed border-border">
-                    <p className="text-lg font-mono text-accent flex-grow overflow-x-auto no-scrollbar">
-                    {`https://points.exnus.xyz/join?ref=${referralCode}`}
-                    </p>
-                    <Button variant="ghost" size="icon" onClick={handleCopy}>
-                    <Copy className="h-5 w-5 text-muted-foreground hover:text-accent" />
-                    </Button>
-                </div>
-                </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-2 gap-6 md:col-span-1 md:grid-cols-1">
-                <Card className="bg-secondary/30 border-border/50">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Users /> Total Referrals
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-3xl font-bold">{referrals}</p>
-                </CardContent>
-                </Card>
-
-                <Card className="bg-secondary/30 border-border/50">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Star /> Bonus Points
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-3xl font-bold">
-                    {new Intl.NumberFormat().format(referrals * POINTS_PER_REFERRAL)}
-                    </p>
-                </CardContent>
-                </Card>
-            </div>
-            </main>
-        )}
-
-      </div>
-    </div>
+        </SidebarInset>
+    </SidebarProvider>
   );
 }
-
-    
