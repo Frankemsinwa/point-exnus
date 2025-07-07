@@ -27,13 +27,14 @@ export async function PUT(request: Request, { params }: { params: { wallet: stri
     const { wallet: targetWallet } = params;
 
     try {
-        const { adminWallet, points } = await request.json();
+        const { adminPassword, points } = await request.json();
 
-        if (!adminWallet) {
-            return NextResponse.json({ error: 'Admin wallet address is required for authorization' }, { status: 401 });
+        if (!adminPassword) {
+            return NextResponse.json({ error: 'Admin password is required for authorization' }, { status: 401 });
         }
-        const adminWallets = process.env.ADMIN_WALLETS?.split(',') || [];
-        if (!adminWallets.includes(adminWallet)) {
+        
+        const requiredAdminPassword = process.env.ADMIN_PASSWORD;
+        if (!requiredAdminPassword || adminPassword !== requiredAdminPassword) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
         

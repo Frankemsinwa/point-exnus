@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Award, Gift, Users } from "lucide-react";
 
 const faqs = [
@@ -52,12 +51,10 @@ export default function LandingPage() {
           Exnus Points Airdrop
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground mb-8">
-          Connect your wallet to start earning points, climb the leaderboard,
+          Start earning points, climb the leaderboard,
           and unlock exclusive rewards.
         </p>
-        <div className="flex justify-center">
-          <WalletMultiButton className="text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform transform hover:scale-105" />
-        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
           <Card className="bg-secondary/50 border-border/50 text-center">
             <CardHeader>
