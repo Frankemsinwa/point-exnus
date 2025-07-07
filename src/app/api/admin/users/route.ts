@@ -26,6 +26,7 @@ export async function GET() {
             wallet,
             points: data.points || 0,
             referralCount: data.referrals?.count || 0,
+            ipAddress: data.ipAddress || null,
         }));
         
         return NextResponse.json(users);

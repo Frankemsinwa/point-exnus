@@ -1,6 +1,6 @@
 'use server';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -25,7 +25,7 @@ async function writeDb(data: any) {
   await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const { wallet } = await request.json();
         
@@ -33,6 +33,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 });
         }
 
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.ip;
         const db = await readDb();
 
         if (db.users[wallet]) {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
             miningActivated: false,
             miningSessionStart: null,
             referralCodeApplied: false,
+            ipAddress: ip,
         };
 
         db.users[wallet] = newUser;
