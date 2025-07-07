@@ -66,6 +66,22 @@
       "miningActivated": true,
       "miningSessionStart": 1751870978978,
       "referralCodeApplied": true
+    },
+    "HKcPmxDhHhgH78tUsa68G26EGTukFL2v4DAJpLHq3hKD": {
+      "points": 0,
+      "referrals": {
+        "count": 0,
+        "referredUsers": []
+      },
+      "referralCode": "HKCPMXDH",
+      "tasksCompleted": {
+        "x": true,
+        "telegram": true,
+        "discord": true
+      },
+      "miningActivated": false,
+      "miningSessionStart": null,
+      "referralCodeApplied": false
     }
   }
 }

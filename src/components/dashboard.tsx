@@ -232,11 +232,6 @@ export default function Dashboard() {
       }
   }, [publicKey, referralCodeInput, toast]);
 
-  const handleSkipReferral = useCallback(async () => {
-      await updateUserData({ referralCodeApplied: true });
-  }, [updateUserData]);
-
-
   const handleCopy = () => {
     if (!userData?.referralCode) return;
     navigator.clipboard.writeText(userData.referralCode);
@@ -312,8 +307,8 @@ export default function Dashboard() {
             <div className="w-full max-w-md mx-auto text-center mt-8 animate-in fade-in-50">
                 <Card className="bg-secondary/30 border-border/50">
                     <CardHeader>
-                        <CardTitle className="text-2xl">Have a Referral Code?</CardTitle>
-                        <CardDescription>Enter a code to get bonus points!</CardDescription>
+                        <CardTitle className="text-2xl">Enter Referral Code</CardTitle>
+                        <CardDescription>You must enter a valid referral code to proceed.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <Input
@@ -326,7 +321,6 @@ export default function Dashboard() {
                         <Button onClick={handleApplyReferral} disabled={isApplyingReferral || !referralCodeInput} className="w-full">
                             {isApplyingReferral ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</> : 'Apply Code'}
                         </Button>
-                        <Button variant="link" onClick={handleSkipReferral} disabled={isApplyingReferral}>Skip for now</Button>
                     </CardContent>
                 </Card>
             </div>
