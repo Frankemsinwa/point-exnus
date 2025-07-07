@@ -10,12 +10,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Copy, Users, Star, Gift, Twitter, Send, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const POINTS_PER_REFERRAL = 1000;
 const JOIN_BONUS_FOR_REFEREE = 500;
 const INITIAL_POINTS = 1000;
+const MINING_REWARD = 1000;
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const TASKS = {
     x: { name: "Follow on X", cta: "Complete Task", url: "https://x.com/exnusprotocol?t=WgNg7R13Pwu-w_syhOQSvQ&s=09" },
@@ -37,8 +40,6 @@ const TASK_ICONS: Record<TaskName, React.ReactNode> = {
     discord: <DiscordIcon className="h-8 w-8 text-accent fill-current" />,
 };
 
-
-// Helper function to animate numbers from 0 to a target value
 const animateValue = (
   setter: React.Dispatch<React.SetStateAction<number>>,
   endValue: number,
@@ -60,30 +61,67 @@ const animateValue = (
   window.requestAnimationFrame(step);
 };
 
+const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+};
+
 export default function Dashboard() {
   const [basePoints, setBasePoints] = useState(0);
   const [referrals, setReferrals] = useState(0);
   const [referralCode, setReferralCode] = useState("");
   const { toast } = useToast();
-  const { publicKey } = useWallet();
+  const { publicKey, signMessage } = useWallet();
 
   const [tasksCompleted, setTasksCompleted] = useState({ x: false, telegram: false, discord: false });
   const [verifyingTask, setVerifyingTask] = useState<TaskName | null>(null);
   const [miningActivated, setMiningActivated] = useState(false);
 
-  const handleActivateMining = () => {
-      if (!publicKey || miningActivated) return;
-      setMiningActivated(true);
-      const userKey = `user-data-${publicKey.toBase58()}`;
-      const userData = JSON.parse(localStorage.getItem(userKey) || "null");
-      if (userData) {
-        userData.miningActivated = true;
-        localStorage.setItem(userKey, JSON.stringify(userData));
-      }
-      toast({
-          title: "All tasks complete!",
-          description: "Mining activated. Welcome to the dashboard.",
-      });
+  // Mining state
+  const [isMining, setIsMining] = useState(false);
+  const [minedPoints, setMinedPoints] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [isClaiming, setIsClaiming] = useState(false);
+
+
+  const handleActivateMining = async () => {
+    if (!publicKey || !signMessage || miningActivated) return;
+
+    toast({
+        title: "Action Required",
+        description: "Please sign the message in your wallet to activate mining.",
+    });
+
+    try {
+        const message = new TextEncoder().encode("Activate Exnus Points mining by signing this message.");
+        await signMessage(message);
+        
+        const userKey = `user-data-${publicKey.toBase58()}`;
+        const userData = JSON.parse(localStorage.getItem(userKey) || "null");
+        
+        if (userData) {
+            userData.miningActivated = true;
+            userData.miningSessionStart = Date.now();
+            localStorage.setItem(userKey, JSON.stringify(userData));
+            setMiningActivated(true);
+            setIsMining(true);
+        }
+
+        toast({
+            title: "Mining Activated!",
+            description: "You have started mining points for the next 24 hours.",
+        });
+
+    } catch (error) {
+        console.error("Signature failed", error);
+        toast({
+            title: "Signature Failed",
+            description: "The signature was declined. Please try again to activate mining.",
+            variant: "destructive",
+        });
+    }
   };
 
   useEffect(() => {
@@ -93,7 +131,6 @@ export default function Dashboard() {
     let userData = JSON.parse(localStorage.getItem(userKey) || "null");
 
     if (!userData) {
-      // New user setup
       const newReferralCode = publicKey.toBase58().substring(0, 8).toUpperCase();
       userData = {
         points: INITIAL_POINTS,
@@ -101,19 +138,16 @@ export default function Dashboard() {
         referralCode: newReferralCode,
         tasksCompleted: { x: false, telegram: false, discord: false },
         miningActivated: false,
+        miningSessionStart: null,
       };
 
       const pendingRefCode = sessionStorage.getItem("pending_referral_code");
       if (pendingRefCode) {
-        // User was referred
         userData.points += JOIN_BONUS_FOR_REFEREE;
-        
         toast({
           title: "Referral Applied!",
           description: `You've received ${JOIN_BONUS_FOR_REFEREE} bonus points!`,
         });
-
-        // This simulates the backend updating the referrer.
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith('user-data-')) {
@@ -135,13 +169,9 @@ export default function Dashboard() {
       localStorage.setItem(userKey, JSON.stringify(userData));
     }
 
-    // Backwards compatibility for existing users
-    if (userData.tasksCompleted === undefined) {
-      userData.tasksCompleted = { x: false, telegram: false, discord: false };
-    }
-    if (userData.miningActivated === undefined) {
-      userData.miningActivated = false;
-    }
+    if (userData.tasksCompleted === undefined) userData.tasksCompleted = { x: false, telegram: false, discord: false };
+    if (userData.miningActivated === undefined) userData.miningActivated = false;
+    if (userData.miningSessionStart === undefined) userData.miningSessionStart = null;
     localStorage.setItem(userKey, JSON.stringify(userData));
 
     setReferralCode(userData.referralCode);
@@ -149,8 +179,54 @@ export default function Dashboard() {
     animateValue(setReferrals, userData.referrals, 1200);
     setTasksCompleted(userData.tasksCompleted);
     setMiningActivated(userData.miningActivated);
-
+    if(userData.miningActivated && userData.miningSessionStart) {
+        setIsMining(true);
+    }
   }, [publicKey, toast]);
+
+  useEffect(() => {
+    if (!isMining || !publicKey) return;
+
+    const userKey = `user-data-${publicKey.toBase58()}`;
+
+    const interval = setInterval(() => {
+        const userData = JSON.parse(localStorage.getItem(userKey) || "null");
+        if (!userData || !userData.miningSessionStart) {
+            setIsMining(false);
+            return;
+        }
+
+        const sessionStart = userData.miningSessionStart;
+        const now = Date.now();
+        const elapsedTimeMs = now - sessionStart;
+
+        if (elapsedTimeMs >= SESSION_DURATION_MS) {
+            if (!isClaiming) {
+                setIsClaiming(true);
+                userData.points += MINING_REWARD;
+                userData.miningSessionStart = now; 
+                localStorage.setItem(userKey, JSON.stringify(userData));
+                
+                setBasePoints(prev => prev + MINING_REWARD);
+                setMinedPoints(0);
+                setTimeRemaining(SESSION_DURATION_MS / 1000);
+                setIsClaiming(false);
+
+                toast({
+                    title: "Points Claimed!",
+                    description: `${MINING_REWARD} points have been added to your balance. A new session has started.`,
+                });
+            }
+        } else {
+            const points = (elapsedTimeMs / SESSION_DURATION_MS) * MINING_REWARD;
+            const remainingMs = SESSION_DURATION_MS - elapsedTimeMs;
+            setMinedPoints(points);
+            setTimeRemaining(remainingMs / 1000);
+        }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isMining, publicKey, toast, isClaiming]);
 
   const handleVerifyTask = (taskName: TaskName) => {
     if (verifyingTask || !publicKey) return;
@@ -158,7 +234,7 @@ export default function Dashboard() {
     window.open(TASKS[taskName].url, '_blank', 'noopener,noreferrer');
     setVerifyingTask(taskName);
 
-    setTimeout(() => {
+    setTimeout(async () => {
         const newTasksCompleted = { ...tasksCompleted, [taskName]: true };
         setTasksCompleted(newTasksCompleted);
 
@@ -177,9 +253,10 @@ export default function Dashboard() {
 
         const allTasksDone = Object.values(newTasksCompleted).every(Boolean);
         if (allTasksDone) {
-            setTimeout(() => handleActivateMining(), 2000);
+            setTimeout(async () => {
+                await handleActivateMining();
+            }, 2000);
         }
-
     }, 10000);
   };
 
@@ -192,8 +269,7 @@ export default function Dashboard() {
     });
   };
 
-  const bonusPoints = referrals * POINTS_PER_REFERRAL;
-  const totalPoints = basePoints + bonusPoints;
+  const totalPoints = basePoints + (referrals * POINTS_PER_REFERRAL);
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-4 sm:p-6 md:p-8">
@@ -242,6 +318,31 @@ export default function Dashboard() {
             </div>
         ) : (
             <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">
+                <CardHeader>
+                    <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
+                        <Loader2 className="text-accent animate-spin" />
+                        Mining Session
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2">
+                            <p className="text-3xl font-bold text-primary">
+                                {minedPoints.toFixed(4)} <span className="text-xl text-accent">PTS Mined</span>
+                            </p>
+                            <p className="text-lg text-muted-foreground">
+                                Time Remaining: {formatTime(timeRemaining)}
+                            </p>
+                        </div>
+                        <Progress value={(minedPoints / MINING_REWARD) * 100} className="w-full h-2" />
+                        <p className="text-sm text-center text-muted-foreground">
+                            You are mining {MINING_REWARD} PTS over 24 hours. Points will be added automatically.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">
                 <CardHeader>
                 <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
@@ -295,7 +396,7 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                     <p className="text-3xl font-bold">
-                    {new Intl.NumberFormat().format(bonusPoints)}
+                    {new Intl.NumberFormat().format(referrals * POINTS_PER_REFERRAL)}
                     </p>
                 </CardContent>
                 </Card>
@@ -307,3 +408,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+    
