@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Copy, Users, Star, Gift, CheckCircle2, Loader2 } from "lucide-react";
+import { Copy, Users, Star, Gift, CheckCircle2, Loader2, Play } from "lucide-react";
 
 type TaskName = 'x' | 'telegram' | 'discord';
 
@@ -28,6 +28,9 @@ interface DashboardContentProps {
     handleCopy: () => void;
     referralCount: number;
     POINTS_PER_REFERRAL: number;
+    allTasksCompleted: boolean;
+    isActivating: boolean;
+    handleActivateMining: () => void;
 }
 
 export default function DashboardContent({
@@ -45,46 +48,66 @@ export default function DashboardContent({
     referralCode,
     handleCopy,
     referralCount,
-    POINTS_PER_REFERRAL
+    POINTS_PER_REFERRAL,
+    allTasksCompleted,
+    isActivating,
+    handleActivateMining
 }: DashboardContentProps) {
 
     return (
         <div className="w-full max-w-5xl mx-auto">
              {!miningActivated ? (
-                <div className="w-full text-center mt-8">
-                    <h2 className="text-4xl font-bold mb-4">Almost there!</h2>
-                    <p className="text-muted-foreground mb-12">Complete these tasks to activate your account and start mining points.</p>
-                    <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                        {(Object.keys(TASKS) as TaskName[]).map((taskName) => {
-                            const task = TASKS[taskName];
-                            const isCompleted = tasksCompleted[taskName];
-                            const isVerifying = verifyingTask === taskName;
-                            const isDisabled = isCompleted || !!verifyingTask;
-
-                            return (
-                                <Card key={taskName} className="bg-secondary/30 border-border/50 text-center flex flex-col">
-                                    <CardHeader>
-                                        <div className="mx-auto bg-accent/20 text-accent p-3 rounded-full w-fit">
-                                            {TASK_ICONS[taskName]}
-                                        </div>
-                                        <CardTitle className="text-2xl pt-4">{task.name}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="flex-grow flex flex-col justify-end">
-                                        <Button onClick={() => handleVerifyTask(taskName)} disabled={isDisabled}>
-                                            {isVerifying ? (
-                                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
-                                            ) : isCompleted ? (
-                                                <><CheckCircle2 className="mr-2 h-5 w-5" /> Completed</>
-                                            ) : (
-                                                task.cta
-                                            )}
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
+                 allTasksCompleted ? (
+                    <div className="w-full text-center mt-8 flex flex-col items-center">
+                        <h2 className="text-4xl font-bold mb-4">All Tasks Completed!</h2>
+                        <p className="text-muted-foreground mb-12">You're ready to start mining. Click the button below to activate your account.</p>
+                        <Button onClick={handleActivateMining} size="lg" disabled={isActivating}>
+                            {isActivating ? (
+                                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Activating...</>
+                            ) : (
+                                <>
+                                <Play className="mr-2 h-5 w-5" />
+                                Activate Mining
+                                </>
+                            )}
+                        </Button>
                     </div>
-                </div>
+                 ) : (
+                    <div className="w-full text-center mt-8">
+                        <h2 className="text-4xl font-bold mb-4">Almost there!</h2>
+                        <p className="text-muted-foreground mb-12">Complete these tasks to activate your account and start mining points.</p>
+                        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                            {(Object.keys(TASKS) as TaskName[]).map((taskName) => {
+                                const task = TASKS[taskName];
+                                const isCompleted = tasksCompleted[taskName];
+                                const isVerifying = verifyingTask === taskName;
+                                const isDisabled = isCompleted || !!verifyingTask;
+
+                                return (
+                                    <Card key={taskName} className="bg-secondary/30 border-border/50 text-center flex flex-col">
+                                        <CardHeader>
+                                            <div className="mx-auto bg-accent/20 text-accent p-3 rounded-full w-fit">
+                                                {TASK_ICONS[taskName]}
+                                            </div>
+                                            <CardTitle className="text-2xl pt-4">{task.name}</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="flex-grow flex flex-col justify-end">
+                                            <Button onClick={() => handleVerifyTask(taskName)} disabled={isDisabled}>
+                                                {isVerifying ? (
+                                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
+                                                ) : isCompleted ? (
+                                                    <><CheckCircle2 className="mr-2 h-5 w-5" /> Completed</>
+                                                ) : (
+                                                    task.cta
+                                                )}
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+                    </div>
+                 )
             ) : (
                 <main className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                     <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">

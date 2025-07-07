@@ -64,6 +64,7 @@ export default function Dashboard() {
   const { publicKey, signMessage } = useWallet();
 
   const [verifyingTask, setVerifyingTask] = useState<TaskName | null>(null);
+  const [isActivating, setIsActivating] = useState(false);
 
   // Mining state
   const [minedPoints, setMinedPoints] = useState(0);
@@ -92,6 +93,7 @@ export default function Dashboard() {
   const handleActivateMining = useCallback(async () => {
     if (!publicKey || !signMessage || userData?.miningActivated) return;
 
+    setIsActivating(true);
     toast({ title: "Action Required", description: "Please sign the message in your wallet to activate mining." });
 
     try {
@@ -107,6 +109,8 @@ export default function Dashboard() {
     } catch (error) {
         console.error("Signature failed", error);
         toast({ title: "Signature Failed", description: "The signature was declined. Please try again.", variant: "destructive" });
+    } finally {
+        setIsActivating(false);
     }
   }, [publicKey, signMessage, userData, updateUserData, toast]);
 
@@ -200,13 +204,6 @@ export default function Dashboard() {
             title: `Task Verified!`,
             description: `You've completed the ${TASKS[taskName].name} task.`,
         });
-
-        const allTasksDone = Object.values(newTasksCompleted).every(Boolean);
-        if (allTasksDone && !userData.miningActivated) {
-            setTimeout(async () => {
-                await handleActivateMining();
-            }, 2000);
-        }
     }, 10000);
   };
 
@@ -237,6 +234,8 @@ export default function Dashboard() {
       );
     }
 
+    const allTasksCompleted = Object.values(userData.tasksCompleted).every(Boolean);
+
     switch(activePage) {
         case 'dashboard':
             return (
@@ -256,6 +255,9 @@ export default function Dashboard() {
                     handleCopy={handleCopy}
                     referralCount={userData.referrals?.count || 0}
                     POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
+                    allTasksCompleted={allTasksCompleted}
+                    isActivating={isActivating}
+                    handleActivateMining={handleActivateMining}
                 />
             );
         case 'leaderboard':
