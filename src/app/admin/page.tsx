@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Download, Database, Users, GitCoin, Trophy } from 'lucide-react';
+import { Loader2, Download, Database, Users, GitCoin, Trophy, ShieldAlert } from 'lucide-react';
 
 interface UserData {
     wallet: string;
@@ -16,13 +18,41 @@ interface UserData {
 const TOTAL_AIRDROP_TOKENS = 100_000_000;
 
 export default function AdminDashboard() {
+    const { publicKey } = useWallet();
+    const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
     const [users, setUsers] = useState<UserData[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
+        const checkAuth = async () => {
+            setAuthStatus('checking');
+            if (!publicKey) {
+                setAuthStatus('unauthorized');
+                return;
+            }
+            try {
+                const response = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wallet: publicKey.toBase58() })
+                });
+                if (!response.ok) throw new Error('Auth check failed');
+                const { authorized } = await response.json();
+                setAuthStatus(authorized ? 'authorized' : 'unauthorized');
+            } catch (error) {
+                console.error(error);
+                setAuthStatus('unauthorized');
+            }
+        };
+        checkAuth();
+    }, [publicKey]);
+
+    useEffect(() => {
+        if (authStatus !== 'authorized') return;
+
         const fetchUsers = async () => {
             try {
-                setLoading(true);
+                setLoadingData(true);
                 const response = await fetch('/api/admin/users');
                 if (!response.ok) {
                     throw new Error('Failed to fetch user data');
@@ -32,12 +62,12 @@ export default function AdminDashboard() {
             } catch (error) {
                 console.error(error);
             } finally {
-                setLoading(false);
+                setLoadingData(false);
             }
         };
 
         fetchUsers();
-    }, []);
+    }, [authStatus]);
 
     const { processedUsers, totalPoints, totalUsers } = useMemo(() => {
         if (users.length === 0) {
@@ -82,6 +112,28 @@ export default function AdminDashboard() {
 
     const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 
+    if (authStatus === 'checking') {
+        return (
+            <div className="flex flex-col min-h-screen items-center justify-center bg-background text-foreground">
+                <Loader2 className="h-12 w-12 animate-spin text-accent" />
+                <p className="mt-4 text-muted-foreground">Verifying access...</p>
+            </div>
+        );
+    }
+
+    if (authStatus === 'unauthorized') {
+        return (
+            <div className="flex flex-col min-h-screen items-center justify-center bg-background text-foreground p-4 text-center">
+                 <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+                <h1 className="text-3xl font-bold">Access Denied</h1>
+                <p className="text-muted-foreground mt-2 max-w-md">You do not have permission to view this page. Please connect an authorized wallet to continue.</p>
+                <div className="mt-8">
+                    <WalletMultiButton />
+                </div>
+            </div>
+        );
+    }
+    
     return (
         <div className="flex flex-col min-h-screen bg-background text-foreground p-4 sm:p-6 md:p-8">
             <header className="flex justify-between items-center mb-8 w-full max-w-7xl mx-auto">
@@ -89,10 +141,13 @@ export default function AdminDashboard() {
                     <Database className="h-8 w-8 text-accent" />
                     Admin Dashboard
                 </h1>
-                <Button onClick={handleExport} disabled={users.length === 0 || loading}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Snapshot
-                </Button>
+                <div className="flex items-center gap-4">
+                    <WalletMultiButton />
+                    <Button onClick={handleExport} disabled={users.length === 0 || loadingData}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export Snapshot
+                    </Button>
+                </div>
             </header>
 
             <main className="w-full max-w-7xl mx-auto">
@@ -132,7 +187,7 @@ export default function AdminDashboard() {
                         <CardDescription>Live data of all users and their calculated token allocation.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {loading ? (
+                        {loadingData ? (
                             <div className="flex justify-center items-center h-64">
                                 <Loader2 className="h-12 w-12 animate-spin text-accent" />
                             </div>
