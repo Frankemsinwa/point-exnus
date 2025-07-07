@@ -13,75 +13,104 @@ import {
 import { Copy, Users, Star, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const POINTS_PER_REFERRAL = 1000;
+const JOIN_BONUS_FOR_REFEREE = 500;
+const INITIAL_POINTS = 1000;
+
+// Helper function to animate numbers from 0 to a target value
+const animateValue = (
+  setter: React.Dispatch<React.SetStateAction<number>>,
+  endValue: number,
+  duration: number
+) => {
+  if (endValue === 0) {
+    setter(0);
+    return;
+  }
+  let startTimestamp: number | null = null;
+  const step = (timestamp: number) => {
+    if (!startTimestamp) startTimestamp = timestamp;
+    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+    setter(Math.floor(progress * endValue));
+    if (progress < 1) {
+      window.requestAnimationFrame(step);
+    }
+  };
+  window.requestAnimationFrame(step);
+};
+
 export default function Dashboard() {
-  const [points, setPoints] = useState(0);
+  const [basePoints, setBasePoints] = useState(0);
   const [referrals, setReferrals] = useState(0);
-  const [bonusPoints, setBonusPoints] = useState(0);
   const [referralCode, setReferralCode] = useState("");
   const { toast } = useToast();
   const { publicKey } = useWallet();
 
   useEffect(() => {
-    // Simulate fetching initial data and generating referral code
-    const initialPoints = 1250;
-    const initialReferrals = 12;
-    const initialBonus = 600;
+    if (!publicKey) return;
 
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-    setReferralCode(code);
+    const userKey = `user-data-${publicKey.toBase58()}`;
+    let userData = JSON.parse(localStorage.getItem(userKey) || "null");
 
-    // Animate points
-    let currentPoints = 0;
-    const pointsInterval = setInterval(() => {
-      currentPoints += Math.ceil(Math.random() * (initialPoints / 50));
-      if (currentPoints >= initialPoints) {
-        setPoints(initialPoints);
-        clearInterval(pointsInterval);
-      } else {
-        setPoints(currentPoints);
+    if (!userData) {
+      // New user setup
+      const newReferralCode = publicKey.toBase58().substring(0, 8).toUpperCase();
+      userData = {
+        points: INITIAL_POINTS,
+        referrals: 0,
+        referralCode: newReferralCode,
+      };
+
+      const pendingRefCode = sessionStorage.getItem("pending_referral_code");
+      if (pendingRefCode) {
+        // User was referred
+        userData.points += JOIN_BONUS_FOR_REFEREE;
+        
+        toast({
+          title: "Referral Applied!",
+          description: `You've received ${JOIN_BONUS_FOR_REFEREE} bonus points!`,
+        });
+
+        // This simulates the backend updating the referrer.
+        // It's inefficient but demonstrates the concept for a prototype without a real database.
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('user-data-')) {
+            try {
+              let referrerData = JSON.parse(localStorage.getItem(key) || "null");
+              if (referrerData && referrerData.referralCode === pendingRefCode) {
+                referrerData.referrals += 1;
+                referrerData.points += POINTS_PER_REFERRAL;
+                localStorage.setItem(key, JSON.stringify(referrerData));
+                break; // Found and updated referrer
+              }
+            } catch (e) {
+              console.error("Failed to parse or update referrer data", e);
+            }
+          }
+        }
+        sessionStorage.removeItem("pending_referral_code");
       }
-    }, 50);
+      localStorage.setItem(userKey, JSON.stringify(userData));
+    }
 
-    // Animate referrals
-    let currentReferrals = 0;
-    const referralsInterval = setInterval(() => {
-      currentReferrals++;
-      if (currentReferrals >= initialReferrals) {
-        setReferrals(initialReferrals);
-        clearInterval(referralsInterval);
-      } else {
-        setReferrals(currentReferrals);
-      }
-    }, 150);
+    setReferralCode(userData.referralCode);
+    animateValue(setBasePoints, userData.points, 1000);
+    animateValue(setReferrals, userData.referrals, 1200);
 
-    // Animate bonus points
-    let currentBonus = 0;
-    const bonusInterval = setInterval(() => {
-      currentBonus += Math.ceil(Math.random() * (initialBonus / 20));
-      if (currentBonus >= initialBonus) {
-        setBonusPoints(initialBonus);
-        clearInterval(bonusInterval);
-      } else {
-        setBonusPoints(currentBonus);
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(pointsInterval);
-      clearInterval(referralsInterval);
-      clearInterval(bonusInterval);
-    };
-  }, []);
+  }, [publicKey, toast]);
 
   const handleCopy = () => {
-    const baseUrl = `https://exnus.app/join?ref=${referralCode}`;
-    const referralLink = publicKey ? `${baseUrl}&wallet=${publicKey.toBase58()}` : baseUrl;
+    const referralLink = `https://points.exnus.xyz/join?ref=${referralCode}`;
     navigator.clipboard.writeText(referralLink);
     toast({
       title: "Copied to clipboard!",
       description: "You can now share your referral link.",
     });
   };
+
+  const bonusPoints = referrals * POINTS_PER_REFERRAL;
+  const totalPoints = basePoints + bonusPoints;
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen bg-background text-foreground p-4 sm:p-6 md:p-8">
@@ -103,7 +132,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-5xl font-bold text-primary">
-                {new Intl.NumberFormat().format(points)}{" "}
+                {new Intl.NumberFormat().format(totalPoints)}{" "}
                 <span className="text-3xl text-accent">PTS</span>
               </p>
             </CardContent>
@@ -118,7 +147,7 @@ export default function Dashboard() {
             <CardContent>
               <div className="flex items-center space-x-2 bg-background/50 p-3 rounded-lg border border-dashed border-border">
                 <p className="text-lg font-mono text-accent flex-grow overflow-x-auto no-scrollbar">
-                  {`https://exnus.app/join?ref=${referralCode}`}
+                  {`https://points.exnus.xyz/join?ref=${referralCode}`}
                 </p>
                 <Button variant="ghost" size="icon" onClick={handleCopy}>
                   <Copy className="h-5 w-5 text-muted-foreground hover:text-accent" />
