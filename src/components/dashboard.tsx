@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,7 @@ export default function Dashboard() {
   const [isMining, setIsMining] = useState(false);
   const [minedPoints, setMinedPoints] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const [isClaiming, setIsClaiming] = useState(false);
+  const isClaimingRef = useRef(false);
   
   const [activePage, setActivePage] = useState<Page>('dashboard');
 
@@ -221,22 +221,25 @@ export default function Dashboard() {
         const elapsedTimeMs = now - sessionStart;
 
         if (elapsedTimeMs >= SESSION_DURATION_MS) {
-            if (!isClaiming) {
-                setIsClaiming(true);
-                userData.points += MINING_REWARD;
-                userData.miningSessionStart = now; 
-                localStorage.setItem(userKey, JSON.stringify(userData));
-                
-                setBasePoints(prev => prev + MINING_REWARD);
-                setMinedPoints(0);
-                setTimeRemaining(SESSION_DURATION_MS / 1000);
-                setIsClaiming(false);
-
-                toast({
-                    title: "Points Claimed!",
-                    description: `${MINING_REWARD} points have been added to your balance. A new session has started.`,
-                });
+            if (isClaimingRef.current) {
+                return;
             }
+            isClaimingRef.current = true;
+            
+            userData.points += MINING_REWARD;
+            userData.miningSessionStart = now; 
+            localStorage.setItem(userKey, JSON.stringify(userData));
+            
+            setBasePoints(prev => prev + MINING_REWARD);
+            setMinedPoints(0);
+            setTimeRemaining(SESSION_DURATION_MS / 1000);
+            
+            toast({
+                title: "Points Claimed!",
+                description: `${MINING_REWARD} points have been added to your balance. A new session has started.`,
+            });
+            
+            isClaimingRef.current = false;
         } else {
             const points = (elapsedTimeMs / SESSION_DURATION_MS) * MINING_REWARD;
             const remainingMs = SESSION_DURATION_MS - elapsedTimeMs;
@@ -246,7 +249,7 @@ export default function Dashboard() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isMining, publicKey, toast, isClaiming]);
+  }, [isMining, publicKey, toast]);
 
   const handleVerifyTask = (taskName: TaskName) => {
     if (verifyingTask || !publicKey) return;
