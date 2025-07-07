@@ -22,10 +22,18 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
   // You can also provide a custom RPC endpoint.
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-
+  // A state to track if the component has mounted. This is a robust way
+  // to ensure that browser-only code does not run on the server.
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    setWallets([
+    setMounted(true);
+  }, []);
+
+  const wallets = useMemo(() => {
+    // Return an empty array if not mounted yet (prevents server-side execution)
+    if (!mounted) return [];
+
+    return [
       /**
        * Wallets that implement the new wallet standard may be found here:
        * @see https://github.com/solana-labs/wallet-standard
@@ -43,13 +51,14 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
       }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
-    ]);
-  }, [network]);
+    ];
+  }, [mounted, network]);
 
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <SolanaWalletProvider wallets={wallets} autoConnect>
+      {/* Disable autoConnect to prevent potential race conditions with the mobile adapter */}
+      <SolanaWalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
