@@ -16,10 +16,15 @@
       "miningSessionStart": 1751870261586
     },
     "FNzf4sZ7GZHJYEa3FngDtjdJSR45h2Qsq8RbHinDjc1t": {
-      "points": 1000,
+      "points": 1100,
       "referrals": {
-        "count": 0,
-        "referredUsers": []
+        "count": 1,
+        "referredUsers": [
+          {
+            "wallet": "5Gy5qYXhYs7aPfEztAG6vTPVow5snudPksBvF5DAYLpX",
+            "joinDate": "2025-07-07T06:49:27.391Z"
+          }
+        ]
       },
       "referralCode": "FNZF4SZ7",
       "tasksCompleted": {
@@ -42,8 +47,24 @@
         "telegram": true,
         "discord": true
       },
-      "miningActivated": false,
-      "miningSessionStart": null,
+      "miningActivated": true,
+      "miningSessionStart": 1751870868100,
+      "referralCodeApplied": true
+    },
+    "5Gy5qYXhYs7aPfEztAG6vTPVow5snudPksBvF5DAYLpX": {
+      "points": 10,
+      "referrals": {
+        "count": 0,
+        "referredUsers": []
+      },
+      "referralCode": "5GY5QYXH",
+      "tasksCompleted": {
+        "x": true,
+        "telegram": true,
+        "discord": true
+      },
+      "miningActivated": true,
+      "miningSessionStart": 1751870978978,
       "referralCodeApplied": true
     }
   }

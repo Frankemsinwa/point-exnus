@@ -111,7 +111,7 @@ const DashboardView = ({
                     </div>
                     <Progress value={(minedPoints / MINING_REWARD) * 100} className="w-full h-2" />
                     <p className="text-sm text-center text-muted-foreground">
-                        You are mining {MINING_REWARD} PTS over 24 hours. Points will be added automatically.
+                        You are mining {MINING_REWARD} PTS. Points will be added to your balance when the session ends.
                     </p>
                 </div>
             </CardContent>
@@ -121,7 +121,7 @@ const DashboardView = ({
             <CardHeader>
             <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
                 <Gift className="text-accent" />
-                Your Total Points
+                Your Points Balance
             </CardTitle>
             </CardHeader>
             <CardContent>
