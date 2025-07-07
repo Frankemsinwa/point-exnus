@@ -12,8 +12,8 @@
         "telegram": true,
         "discord": true
       },
-      "miningActivated": false,
-      "miningSessionStart": null
+      "miningActivated": true,
+      "miningSessionStart": 1751870261586
     },
     "FNzf4sZ7GZHJYEa3FngDtjdJSR45h2Qsq8RbHinDjc1t": {
       "points": 1000,

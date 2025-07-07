@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
-import { Copy, Users as UsersIcon, Star, Gift, Twitter, Send, CheckCircle2, Loader2, LayoutDashboard, Trophy } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Twitter, Send, Loader2, LayoutDashboard, Trophy, Users as UsersIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardContent from "./dashboard-content";
@@ -36,6 +38,7 @@ type UserData = {
     tasksCompleted: { x: boolean; telegram: boolean; discord: boolean };
     miningActivated: boolean;
     miningSessionStart: number | null;
+    referralCodeApplied?: boolean;
 } | null;
 
 const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -65,6 +68,9 @@ export default function Dashboard() {
 
   const [verifyingTask, setVerifyingTask] = useState<TaskName | null>(null);
   const [isActivating, setIsActivating] = useState(false);
+
+  const [referralCodeInput, setReferralCodeInput] = useState("");
+  const [isApplyingReferral, setIsApplyingReferral] = useState(false);
 
   // Mining state
   const [minedPoints, setMinedPoints] = useState(0);
@@ -130,20 +136,14 @@ export default function Dashboard() {
           const user = await response.json();
           setUserData(user);
         } else if (response.status === 404) {
-          // User not found, create new user
-          const referredByCode = sessionStorage.getItem("pending_referral_code");
           const createResponse = await fetch('/api/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wallet, referredByCode }),
+            body: JSON.stringify({ wallet }),
           });
           if (!createResponse.ok) throw new Error('Failed to create user');
           const newUser = await createResponse.json();
           setUserData(newUser);
-          if (referredByCode) {
-            toast({ title: "Referral Applied!", description: `You've received bonus points!` });
-            sessionStorage.removeItem("pending_referral_code");
-          }
         } else {
           throw new Error('Failed to fetch user data');
         }
@@ -206,14 +206,41 @@ export default function Dashboard() {
         });
     }, 10000);
   };
+  
+  const handleApplyReferral = useCallback(async () => {
+      if (!publicKey || !referralCodeInput) return;
+      setIsApplyingReferral(true);
+      try {
+          const response = await fetch(`/api/users/${publicKey.toBase58()}/apply-referral`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ referralCode: referralCodeInput }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+              throw new Error(result.error || 'Failed to apply referral code');
+          }
+          setUserData(result);
+          toast({ title: "Referral Applied!", description: "You've received bonus points!" });
+      } catch (error: any) {
+          console.error(error);
+          toast({ title: 'Error', description: error.message || 'Could not apply referral code.', variant: 'destructive' });
+      } finally {
+          setIsApplyingReferral(false);
+      }
+  }, [publicKey, referralCodeInput, toast]);
+
+  const handleSkipReferral = useCallback(async () => {
+      await updateUserData({ referralCodeApplied: true });
+  }, [updateUserData]);
+
 
   const handleCopy = () => {
     if (!userData?.referralCode) return;
-    const referralLink = `https://points.exnus.xyz/join?ref=${userData.referralCode}`;
-    navigator.clipboard.writeText(referralLink);
+    navigator.clipboard.writeText(userData.referralCode);
     toast({
       title: "Copied to clipboard!",
-      description: "You can now share your referral link.",
+      description: "You can now share your referral code.",
     });
   };
 
@@ -234,39 +261,86 @@ export default function Dashboard() {
       );
     }
 
+    if (userData.miningActivated) {
+        switch(activePage) {
+            case 'dashboard':
+                return <DashboardContent
+                            onboardingStep="dashboard"
+                            tasksCompleted={userData.tasksCompleted}
+                            verifyingTask={verifyingTask}
+                            TASK_ICONS={TASK_ICONS}
+                            TASKS={TASKS}
+                            handleVerifyTask={handleVerifyTask}
+                            minedPoints={minedPoints}
+                            MINING_REWARD={MINING_REWARD}
+                            timeRemaining={timeRemaining}
+                            formatTime={formatTime}
+                            totalPoints={userData.points}
+                            referralCode={userData.referralCode}
+                            handleCopy={handleCopy}
+                            referralCount={userData.referrals?.count || 0}
+                            POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
+                            isActivating={isActivating}
+                            handleActivateMining={handleActivateMining}
+                        />;
+            case 'leaderboard':
+                return <Leaderboard POINTS_PER_REFERRAL={POINTS_PER_REFERRAL} />;
+            case 'referrals':
+                return <ReferralsList referrals={userData.referrals} />;
+            default:
+                return null;
+        }
+    }
+    
     const allTasksCompleted = Object.values(userData.tasksCompleted).every(Boolean);
 
-    switch(activePage) {
-        case 'dashboard':
-            return (
-                <DashboardContent
-                    miningActivated={userData.miningActivated}
+    if (!allTasksCompleted) {
+        return <DashboardContent
+                    onboardingStep="tasks"
                     tasksCompleted={userData.tasksCompleted}
                     verifyingTask={verifyingTask}
                     TASK_ICONS={TASK_ICONS}
                     TASKS={TASKS}
                     handleVerifyTask={handleVerifyTask}
-                    minedPoints={minedPoints}
-                    MINING_REWARD={MINING_REWARD}
-                    timeRemaining={timeRemaining}
-                    formatTime={formatTime}
-                    totalPoints={userData.points}
-                    referralCode={userData.referralCode}
-                    handleCopy={handleCopy}
-                    referralCount={userData.referrals?.count || 0}
-                    POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
-                    allTasksCompleted={allTasksCompleted}
-                    isActivating={isActivating}
-                    handleActivateMining={handleActivateMining}
-                />
-            );
-        case 'leaderboard':
-            return <Leaderboard POINTS_PER_REFERRAL={POINTS_PER_REFERRAL} />;
-        case 'referrals':
-            return <ReferralsList referrals={userData.referrals} />;
-        default:
-            return null;
+                />;
     }
+    
+    if (!userData.referralCodeApplied) {
+        return (
+            <div className="w-full max-w-md mx-auto text-center mt-8 animate-in fade-in-50">
+                <Card className="bg-secondary/30 border-border/50">
+                    <CardHeader>
+                        <CardTitle className="text-2xl">Have a Referral Code?</CardTitle>
+                        <CardDescription>Enter a code to get bonus points!</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Input
+                            placeholder="ENTER 8-DIGIT CODE"
+                            value={referralCodeInput}
+                            onChange={(e) => setReferralCodeInput(e.target.value.toUpperCase())}
+                            maxLength={8}
+                            className="text-center text-lg tracking-widest font-mono"
+                        />
+                        <Button onClick={handleApplyReferral} disabled={isApplyingReferral || !referralCodeInput} className="w-full">
+                            {isApplyingReferral ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</> : 'Apply Code'}
+                        </Button>
+                        <Button variant="link" onClick={handleSkipReferral} disabled={isApplyingReferral}>Skip for now</Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+    
+    return <DashboardContent
+                onboardingStep="activate"
+                isActivating={isActivating}
+                handleActivateMining={handleActivateMining}
+                tasksCompleted={userData.tasksCompleted}
+                verifyingTask={verifyingTask}
+                TASK_ICONS={TASK_ICONS}
+                TASKS={TASKS}
+                handleVerifyTask={handleVerifyTask}
+            />;
   };
 
   return (
@@ -280,19 +354,19 @@ export default function Dashboard() {
             <SidebarContent>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => setActivePage('dashboard')} isActive={activePage === 'dashboard'} tooltip="Dashboard">
+                        <SidebarMenuButton onClick={() => setActivePage('dashboard')} isActive={activePage === 'dashboard'} tooltip="Dashboard" disabled={!userData?.miningActivated}>
                             <LayoutDashboard />
                             <span>Dashboard</span>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => setActivePage('leaderboard')} isActive={activePage === 'leaderboard'} tooltip="Leaderboard">
+                        <SidebarMenuButton onClick={() => setActivePage('leaderboard')} isActive={activePage === 'leaderboard'} tooltip="Leaderboard" disabled={!userData?.miningActivated}>
                             <Trophy />
                             <span>Leaderboard</span>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => setActivePage('referrals')} isActive={activePage === 'referrals'} tooltip="Referrals">
+                        <SidebarMenuButton onClick={() => setActivePage('referrals')} isActive={activePage === 'referrals'} tooltip="Referrals" disabled={!userData?.miningActivated}>
                             <UsersIcon />
                             <span>Referrals</span>
                         </SidebarMenuButton>
