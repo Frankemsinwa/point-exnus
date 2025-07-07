@@ -8,6 +8,7 @@ import {
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { clusterApiUrl } from "@solana/web3.js";
 
 export const WalletProvider: FC<{ children: React.ReactNode }> = ({
@@ -29,6 +30,7 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
        * @see https://github.com/solana-labs/wallet-adapter#wallets
        */
       new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [network]
