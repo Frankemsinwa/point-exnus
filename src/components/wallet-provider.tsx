@@ -4,8 +4,9 @@ import React, { FC, useMemo, useState, useEffect } from "react";
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
+  Wallet,
 } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork, type Wallet } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
@@ -24,26 +25,25 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
   useEffect(() => {
-    /**
-     * Wallets that implement the new wallet standard may be found here:
-     * @see https://github.com/solana-labs/wallet-standard
-     *
-     * Alternatively, you can support specific wallets by adding their adapters:
-     * @see https://github.com/solana-labs/wallet-adapter#wallets
-     *
-     * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
-     * for wallets that have mobile apps (like Phantom and Solflare), as well
-     * as the SolanaMobileWalletAdapter for wallets that support the mobile standard.
-     */
-    const walletAdapters = [
+    setWallets([
+      /**
+       * Wallets that implement the new wallet standard may be found here:
+       * @see https://github.com/solana-labs/wallet-standard
+       *
+       * Alternatively, you can support specific wallets by adding their adapters:
+       * @see https://github.com/solana-labs/wallet-adapter#wallets
+       *
+       * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
+       * for wallets that have mobile apps (like Phantom and Solflare), as well
+       * as the SolanaMobileWalletAdapter for wallets that support the mobile standard.
+       */
       new SolanaMobileWalletAdapter({
         appIdentity: { name: "Exnus Points" },
         cluster: network,
       }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
-    ];
-    setWallets(walletAdapters);
+    ]);
   }, [network]);
 
 
