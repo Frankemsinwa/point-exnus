@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Copy, Users, Star, Gift, Wallet } from "lucide-react";
+import { Copy, Users, Star, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
@@ -17,6 +19,7 @@ export default function Dashboard() {
   const [bonusPoints, setBonusPoints] = useState(0);
   const [referralCode, setReferralCode] = useState("");
   const { toast } = useToast();
+  const { publicKey } = useWallet();
 
   useEffect(() => {
     // Simulate fetching initial data and generating referral code
@@ -71,7 +74,8 @@ export default function Dashboard() {
   }, []);
 
   const handleCopy = () => {
-    const referralLink = `https://exnus.app/join?ref=${referralCode}`;
+    const baseUrl = `https://exnus.app/join?ref=${referralCode}`;
+    const referralLink = publicKey ? `${baseUrl}&wallet=${publicKey.toBase58()}` : baseUrl;
     navigator.clipboard.writeText(referralLink);
     toast({
       title: "Copied to clipboard!",
@@ -86,10 +90,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600">
             Exnus Points
           </h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground border border-dashed border-accent rounded-full px-4 py-2">
-            <Wallet className="h-4 w-4 text-accent" />
-            <span>0x...a1b2</span>
-          </div>
+          <WalletMultiButton />
         </header>
 
         <main className="grid grid-cols-1 md:grid-cols-3 gap-6">

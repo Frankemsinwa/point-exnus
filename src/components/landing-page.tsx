@@ -1,19 +1,15 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Gift, Users, Award } from "lucide-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { Award, Gift, Users } from "lucide-react";
 
-interface LandingPageProps {
-  onConnectWallet: () => void;
-}
-
-export default function LandingPage({ onConnectWallet }: LandingPageProps) {
+export default function LandingPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
       <div className="max-w-4xl w-full text-center">
@@ -24,13 +20,9 @@ export default function LandingPage({ onConnectWallet }: LandingPageProps) {
           Connect your wallet to start earning points, climb the leaderboard,
           and unlock exclusive rewards.
         </p>
-        <Button
-          onClick={onConnectWallet}
-          size="lg"
-          className="text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform transform hover:scale-105"
-        >
-          Connect Wallet
-        </Button>
+        <div className="flex justify-center">
+          <WalletMultiButton className="text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90 transition-transform transform hover:scale-105" />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
           <Card className="bg-secondary/50 border-border/50 text-center">
             <CardHeader>
