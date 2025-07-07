@@ -1,7 +1,7 @@
 {
   "users": {
     "9Kqt28pfMVBsBvXYYnYQCT2BZyorAwzbR6dUmgQfsZYW": {
-      "points": 1000,
+      "points": 0,
       "referrals": {
         "count": 0,
         "referredUsers": []
@@ -16,7 +16,7 @@
       "miningSessionStart": 1751870261586
     },
     "FNzf4sZ7GZHJYEa3FngDtjdJSR45h2Qsq8RbHinDjc1t": {
-      "points": 0,
+      "points": 100,
       "referrals": {
         "count": 1,
         "referredUsers": [
@@ -36,7 +36,7 @@
       "miningSessionStart": 1751869918951
     },
     "B23Lt4oFVzVYsqnUNkyz1yjzbobZXDik3Cbt8PQgDyYX": {
-      "points": 1000,
+      "points": 0,
       "referrals": {
         "count": 0,
         "referredUsers": []
