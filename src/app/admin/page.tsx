@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Download, Database, Users, Coins, Trophy, ShieldAlert } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 interface UserData {
     wallet: string;
@@ -19,9 +23,14 @@ const TOTAL_AIRDROP_TOKENS = 100_000_000;
 
 export default function AdminDashboard() {
     const { publicKey } = useWallet();
+    const { toast } = useToast();
     const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
     const [users, setUsers] = useState<UserData[]>([]);
     const [loadingData, setLoadingData] = useState(true);
+
+    const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    const [newPoints, setNewPoints] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -112,6 +121,45 @@ export default function AdminDashboard() {
 
     const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 
+    const handlePointUpdate = async () => {
+        if (!editingUser || !publicKey) return;
+
+        const pointsValue = parseInt(newPoints, 10);
+        if (isNaN(pointsValue) || pointsValue < 0) {
+            toast({ title: "Invalid Input", description: "Please enter a valid non-negative number for points.", variant: "destructive" });
+            return;
+        }
+
+        setIsUpdating(true);
+        try {
+            const response = await fetch(`/api/admin/users/${editingUser.wallet}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminWallet: publicKey.toBase58(), points: pointsValue })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to update points');
+            }
+            
+            setUsers(prevUsers => 
+                prevUsers.map(u => 
+                    u.wallet === editingUser.wallet ? { ...u, points: pointsValue } : u
+                )
+            );
+
+            toast({ title: "Success", description: `Points updated for ${truncateWallet(editingUser.wallet)}.` });
+            setEditingUser(null);
+
+        } catch (error: any) {
+            console.error(error);
+            toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+
     if (authStatus === 'checking') {
         return (
             <div className="flex flex-col min-h-screen items-center justify-center bg-background text-foreground">
@@ -200,6 +248,7 @@ export default function AdminDashboard() {
                                     <TableHead className="text-right">Points</TableHead>
                                     <TableHead className="text-right">Referrals</TableHead>
                                     <TableHead className="text-right">Airdrop Allocation</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -210,11 +259,19 @@ export default function AdminDashboard() {
                                         <TableCell className="text-right">{new Intl.NumberFormat().format(user.points)}</TableCell>
                                         <TableCell className="text-right">{user.referralCount}</TableCell>
                                         <TableCell className="text-right font-bold">{user.airdropAllocation?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="outline" size="sm" onClick={() => {
+                                                setEditingUser(user);
+                                                setNewPoints(user.points.toString());
+                                            }}>
+                                                Edit
+                                            </Button>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                                 {processedUsers.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center h-24">No user data found.</TableCell>
+                                        <TableCell colSpan={6} className="text-center h-24">No user data found.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -223,6 +280,37 @@ export default function AdminDashboard() {
                     </CardContent>
                 </Card>
             </main>
+            <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Points for {editingUser?.wallet && truncateWallet(editingUser.wallet)}</DialogTitle>
+                        <DialogDescription>
+                            You can manually adjust the point balance for this user. This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="points" className="text-right">
+                            Points
+                            </Label>
+                            <Input
+                            id="points"
+                            type="number"
+                            value={newPoints}
+                            onChange={(e) => setNewPoints(e.target.value)}
+                            className="col-span-3"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
+                        <Button onClick={handlePointUpdate} disabled={isUpdating}>
+                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
