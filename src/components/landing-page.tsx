@@ -1,6 +1,12 @@
 "use client";
 
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -9,9 +15,38 @@ import {
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Award, Gift, Users } from "lucide-react";
 
+const faqs = [
+  {
+    question: "What is the Exnus Points Airdrop?",
+    answer:
+      "The Exnus Points Airdrop is a program designed to reward our early supporters and community members. By participating, you can earn points that will be converted into tokens during our official airdrop event.",
+  },
+  {
+    question: "How do I earn points?",
+    answer:
+      "You can earn points by completing simple tasks like following our social media accounts, joining our community channels, referring new users, and participating in our 24-hour mining sessions.",
+  },
+  {
+    question: "How are the airdrop tokens allocated?",
+    answer:
+      "Your share of the total airdrop token pool is directly proportional to the number of points you have accumulated. The more points you earn, the larger your token allocation will be.",
+  },
+  {
+    question: "Are multiple accounts allowed?",
+    answer:
+      "No, creating multiple accounts to farm points is strictly prohibited. We have measures in place to detect such activities, and any users found violating this rule will have their accounts disqualified from the airdrop.",
+  },
+  {
+    question: "When will the airdrop happen?",
+    answer:
+      "The official date for the airdrop will be announced on our social media channels and in our community groups. Stay tuned for updates!",
+  },
+];
+
+
 export default function LandingPage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
+    <div className="flex flex-col items-center justify-start bg-background text-foreground p-4 py-20 sm:py-28">
       <div className="max-w-4xl w-full text-center">
         <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600">
           Exnus Points Airdrop
@@ -66,6 +101,22 @@ export default function LandingPage() {
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="mt-24 text-left">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
+            Frequently Asked Questions
+          </h2>
+          <Accordion type="single" collapsible className="w-full">
+            {faqs.map((faq, index) => (
+              <AccordionItem value={`item-${index}`} key={index}>
+                <AccordionTrigger className="text-lg text-left hover:no-underline">{faq.question}</AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-base">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </div>
     </div>
