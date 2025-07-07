@@ -1,11 +1,10 @@
 "use client";
 
-import React, { FC, useMemo, useState, useEffect } from "react";
+import React, { FC, useMemo } from "react";
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
 } from "@solana/wallet-adapter-react";
-import type { Wallet } from "@solana/wallet-adapter-react";
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
@@ -22,10 +21,8 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
   // You can also provide a custom RPC endpoint.
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-
-  useEffect(() => {
-    const walletAdapters = [
+  const wallets = useMemo(
+    () => [
       /**
        * Wallets that implement the new wallet standard may be found here:
        * @see https://github.com/solana-labs/wallet-standard
@@ -33,9 +30,9 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
        * Alternatively, you can support specific wallets by adding their adapters:
        * @see https://github.com/solana-labs/wallet-adapter#wallets
        *
-       * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
-       * for wallets that have mobile apps (like Phantom and Solflare), as well
-       * as the SolanaMobileWalletAdapter for wallets that support the mobile standard.
+       * MOBILE SUPPORT: The SolanaMobileWalletAdapter provides a WalletConnect-like
+       * experience for mobile users on any browser, allowing them to connect to
+       * any compatible wallet app on their device.
        */
       new SolanaMobileWalletAdapter({
         appIdentity: { name: "Exnus Points" },
@@ -43,14 +40,12 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
       }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
-    ];
-    setWallets(walletAdapters);
-  }, [network]);
-
+    ],
+    [network]
+  );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      {/* Disable autoConnect to prevent potential race conditions with the mobile adapter */}
       <SolanaWalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
