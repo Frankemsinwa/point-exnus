@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const dbPath = path.resolve(process.cwd(), 'db.json');
-const INITIAL_POINTS = 1000;
+const INITIAL_POINTS = 0;
 
 async function readDb() {
   try {

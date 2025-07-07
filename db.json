@@ -29,6 +29,22 @@
       },
       "miningActivated": true,
       "miningSessionStart": 1751869918951
+    },
+    "B23Lt4oFVzVYsqnUNkyz1yjzbobZXDik3Cbt8PQgDyYX": {
+      "points": 1000,
+      "referrals": {
+        "count": 0,
+        "referredUsers": []
+      },
+      "referralCode": "B23LT4OF",
+      "tasksCompleted": {
+        "x": true,
+        "telegram": true,
+        "discord": true
+      },
+      "miningActivated": false,
+      "miningSessionStart": null,
+      "referralCodeApplied": true
     }
   }
 }

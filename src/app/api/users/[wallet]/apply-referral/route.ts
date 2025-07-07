@@ -5,8 +5,8 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const dbPath = path.resolve(process.cwd(), 'db.json');
-const POINTS_PER_REFERRAL = 1000;
-const JOIN_BONUS_FOR_REFEREE = 500;
+const POINTS_PER_REFERRAL = 100;
+const JOIN_BONUS_FOR_REFEREE = 10;
 
 async function readDb() {
   try {

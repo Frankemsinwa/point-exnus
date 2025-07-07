@@ -19,7 +19,7 @@ import DashboardContent from "./dashboard-content";
 import Leaderboard from "./leaderboard";
 import ReferralsList from "./referrals-list";
 
-const POINTS_PER_REFERRAL = 1000;
+const POINTS_PER_REFERRAL = 100;
 const MINING_REWARD = 1000;
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -167,16 +167,18 @@ export default function Dashboard() {
 
         if (elapsedTimeMs >= SESSION_DURATION_MS) {
             const newPoints = (userData.points || 0) + MINING_REWARD;
-            await updateUserData({
+            const updatedUser = await updateUserData({
                 points: newPoints,
                 miningSessionStart: now,
             });
-            setMinedPoints(0);
-            setTimeRemaining(SESSION_DURATION_MS / 1000);
-            toast({
-                title: "Points Claimed!",
-                description: `${MINING_REWARD} points have been added. A new session has started.`,
-            });
+            if (updatedUser) {
+                setMinedPoints(0);
+                setTimeRemaining(SESSION_DURATION_MS / 1000);
+                toast({
+                    title: "Points Claimed!",
+                    description: `${MINING_REWARD} points have been added. A new session has started.`,
+                });
+            }
         } else {
             const points = (elapsedTimeMs / SESSION_DURATION_MS) * MINING_REWARD;
             const remainingMs = SESSION_DURATION_MS - elapsedTimeMs;
