@@ -28,6 +28,11 @@ export const WalletProvider: FC<{ children: React.ReactNode }> = ({
        *
        * Alternatively, you can support specific wallets by adding their adapters:
        * @see https://github.com/solana-labs/wallet-adapter#wallets
+       *
+       * MOBILE SUPPORT: Mobile wallet support is handled by including adapters
+       * for wallets that have mobile apps (like Phantom and Solflare). The UI
+       * will automatically detect the mobile environment and prompt users to
+       * connect with their installed wallet app.
        */
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
