@@ -96,7 +96,7 @@ export default function LandingPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                Redeem points for exclusive airdrops, NFTs, and other special
+                Redeem points for exclusive airdrops, and other special
                 rewards in the Exnus ecosystem.
               </p>
             </CardContent>
