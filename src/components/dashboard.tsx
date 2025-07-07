@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,6 @@ import Leaderboard from "./leaderboard";
 import ReferralsList from "./referrals-list";
 
 const POINTS_PER_REFERRAL = 1000;
-const JOIN_BONUS_FOR_REFEREE = 500;
-const INITIAL_POINTS = 1000;
 const MINING_REWARD = 1000;
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -31,6 +29,14 @@ const TASKS = {
 
 type TaskName = keyof typeof TASKS;
 type Page = 'dashboard' | 'leaderboard' | 'referrals';
+type UserData = {
+    points: number;
+    referrals: { count: number; referredUsers: any[] };
+    referralCode: string;
+    tasksCompleted: { x: boolean; telegram: boolean; discord: boolean };
+    miningActivated: boolean;
+    miningSessionStart: number | null;
+} | null;
 
 const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -44,27 +50,6 @@ const TASK_ICONS: Record<TaskName, React.ReactNode> = {
     discord: <DiscordIcon className="h-8 w-8 text-accent fill-current" />,
 };
 
-const animateValue = (
-  setter: React.Dispatch<React.SetStateAction<number>>,
-  endValue: number,
-  duration: number
-) => {
-  if (endValue === 0) {
-    setter(0);
-    return;
-  }
-  let startTimestamp: number | null = null;
-  const step = (timestamp: number) => {
-    if (!startTimestamp) startTimestamp = timestamp;
-    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-    setter(Math.floor(progress * endValue));
-    if (progress < 1) {
-      window.requestAnimationFrame(step);
-    }
-  };
-  window.requestAnimationFrame(step);
-};
-
 const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
@@ -73,173 +58,121 @@ const formatTime = (seconds: number) => {
 };
 
 export default function Dashboard() {
-  const [basePoints, setBasePoints] = useState(0);
-  const [referrals, setReferrals] = useState({ count: 0, referredUsers: [] });
-  const [animatedReferralCount, setAnimatedReferralCount] = useState(0);
-  const [referralCode, setReferralCode] = useState("");
+  const [userData, setUserData] = useState<UserData>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const { publicKey, signMessage } = useWallet();
 
-  const [tasksCompleted, setTasksCompleted] = useState({ x: false, telegram: false, discord: false });
   const [verifyingTask, setVerifyingTask] = useState<TaskName | null>(null);
-  const [miningActivated, setMiningActivated] = useState(false);
 
   // Mining state
-  const [isMining, setIsMining] = useState(false);
   const [minedPoints, setMinedPoints] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const isClaimingRef = useRef(false);
   
   const [activePage, setActivePage] = useState<Page>('dashboard');
 
+  const updateUserData = useCallback(async (data: Partial<UserData>) => {
+    if (!publicKey) return;
+    try {
+        const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error('Failed to update user data');
+        const updatedUser = await response.json();
+        setUserData(updatedUser);
+        return updatedUser;
+    } catch (error) {
+        console.error(error);
+        toast({ title: 'Error', description: 'Could not update your data. Please refresh.', variant: 'destructive' });
+    }
+  }, [publicKey, toast]);
 
-  const handleActivateMining = async () => {
-    if (!publicKey || !signMessage || miningActivated) return;
+  const handleActivateMining = useCallback(async () => {
+    if (!publicKey || !signMessage || userData?.miningActivated) return;
 
-    toast({
-        title: "Action Required",
-        description: "Please sign the message in your wallet to activate mining.",
-    });
+    toast({ title: "Action Required", description: "Please sign the message in your wallet to activate mining." });
 
     try {
         const message = new TextEncoder().encode("Activate Exnus Points mining by signing this message.");
         await signMessage(message);
         
-        const userKey = `user-data-${publicKey.toBase58()}`;
-        const userData = JSON.parse(localStorage.getItem(userKey) || "null");
-        
-        if (userData) {
-            userData.miningActivated = true;
-            userData.miningSessionStart = Date.now();
-            localStorage.setItem(userKey, JSON.stringify(userData));
-            setMiningActivated(true);
-            setIsMining(true);
-        }
-
-        toast({
-            title: "Mining Activated!",
-            description: "You have started mining points for the next 24 hours.",
+        await updateUserData({
+            miningActivated: true,
+            miningSessionStart: Date.now(),
         });
 
+        toast({ title: "Mining Activated!", description: "You have started mining points for the next 24 hours." });
     } catch (error) {
         console.error("Signature failed", error);
-        toast({
-            title: "Signature Failed",
-            description: "The signature was declined. Please try again to activate mining.",
-            variant: "destructive",
-        });
+        toast({ title: "Signature Failed", description: "The signature was declined. Please try again.", variant: "destructive" });
     }
-  };
+  }, [publicKey, signMessage, userData, updateUserData, toast]);
 
   useEffect(() => {
-    if (!publicKey) return;
+    if (!publicKey) {
+      setLoading(false);
+      setUserData(null);
+      return;
+    }
 
-    const userKey = `user-data-${publicKey.toBase58()}`;
-    let userData = JSON.parse(localStorage.getItem(userKey) || "null");
-
-    if (!userData) {
-      const newReferralCode = publicKey.toBase58().substring(0, 8).toUpperCase();
-      userData = {
-        points: INITIAL_POINTS,
-        referrals: { count: 0, referredUsers: [] },
-        referralCode: newReferralCode,
-        tasksCompleted: { x: false, telegram: false, discord: false },
-        miningActivated: false,
-        miningSessionStart: null,
-      };
-
-      const pendingRefCode = sessionStorage.getItem("pending_referral_code");
-      if (pendingRefCode) {
-        userData.points += JOIN_BONUS_FOR_REFEREE;
-        toast({
-          title: "Referral Applied!",
-          description: `You've received ${JOIN_BONUS_FOR_REFEREE} bonus points!`,
-        });
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('user-data-')) {
-            try {
-              let referrerData = JSON.parse(localStorage.getItem(key) || "null");
-              if (referrerData && referrerData.referralCode === pendingRefCode) {
-                // Ensure new referral structure
-                if (!referrerData.referrals || typeof referrerData.referrals !== 'object') {
-                    referrerData.referrals = { count: 0, referredUsers: [] };
-                }
-                referrerData.referrals.count = (referrerData.referrals.count || 0) + 1;
-                referrerData.referrals.referredUsers.push({
-                    wallet: publicKey.toBase58(),
-                    joinDate: new Date().toISOString(),
-                });
-                referrerData.points += POINTS_PER_REFERRAL;
-                localStorage.setItem(key, JSON.stringify(referrerData));
-                break;
-              }
-            } catch (e) {
-              console.error("Failed to parse or update referrer data", e);
-            }
+    const fetchOrCreateUser = async () => {
+      setLoading(true);
+      const wallet = publicKey.toBase58();
+      try {
+        const response = await fetch(`/api/users/${wallet}`);
+        if (response.ok) {
+          const user = await response.json();
+          setUserData(user);
+        } else if (response.status === 404) {
+          // User not found, create new user
+          const referredByCode = sessionStorage.getItem("pending_referral_code");
+          const createResponse = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wallet, referredByCode }),
+          });
+          if (!createResponse.ok) throw new Error('Failed to create user');
+          const newUser = await createResponse.json();
+          setUserData(newUser);
+          if (referredByCode) {
+            toast({ title: "Referral Applied!", description: `You've received bonus points!` });
+            sessionStorage.removeItem("pending_referral_code");
           }
+        } else {
+          throw new Error('Failed to fetch user data');
         }
-        sessionStorage.removeItem("pending_referral_code");
+      } catch (error) {
+        console.error(error);
+        toast({ title: 'Error', description: 'Could not load your data. Please refresh.', variant: 'destructive' });
+      } finally {
+        setLoading(false);
       }
-      localStorage.setItem(userKey, JSON.stringify(userData));
-    }
+    };
 
-    // Migration for old data structure
-    if (typeof userData.referrals === 'number') {
-        userData.referrals = { count: userData.referrals, referredUsers: [] };
-    }
-    if (userData.tasksCompleted === undefined) userData.tasksCompleted = { x: false, telegram: false, discord: false };
-    if (userData.miningActivated === undefined) userData.miningActivated = false;
-    if (userData.miningSessionStart === undefined) userData.miningSessionStart = null;
-    localStorage.setItem(userKey, JSON.stringify(userData));
-
-    setReferralCode(userData.referralCode);
-    animateValue(setBasePoints, userData.points, 1000);
-    setReferrals(userData.referrals);
-    animateValue(setAnimatedReferralCount, userData.referrals.count, 1200);
-    setTasksCompleted(userData.tasksCompleted);
-    setMiningActivated(userData.miningActivated);
-    if(userData.miningActivated && userData.miningSessionStart) {
-        setIsMining(true);
-    }
+    fetchOrCreateUser();
   }, [publicKey, toast]);
 
   useEffect(() => {
-    if (!isMining || !publicKey) return;
+    if (!userData?.miningActivated || !userData.miningSessionStart) return;
 
-    const userKey = `user-data-${publicKey.toBase58()}`;
-
-    const interval = setInterval(() => {
-        const userData = JSON.parse(localStorage.getItem(userKey) || "null");
-        if (!userData || !userData.miningSessionStart) {
-            setIsMining(false);
-            return;
-        }
-
-        const sessionStart = userData.miningSessionStart;
+    const interval = setInterval(async () => {
         const now = Date.now();
-        const elapsedTimeMs = now - sessionStart;
+        const elapsedTimeMs = now - userData.miningSessionStart!;
 
         if (elapsedTimeMs >= SESSION_DURATION_MS) {
-            if (isClaimingRef.current) {
-                return;
-            }
-            isClaimingRef.current = true;
-            
-            userData.points += MINING_REWARD;
-            userData.miningSessionStart = now; 
-            localStorage.setItem(userKey, JSON.stringify(userData));
-            
-            setBasePoints(prev => prev + MINING_REWARD);
+            const newPoints = (userData.points || 0) + MINING_REWARD;
+            await updateUserData({
+                points: newPoints,
+                miningSessionStart: now,
+            });
             setMinedPoints(0);
             setTimeRemaining(SESSION_DURATION_MS / 1000);
-            
             toast({
                 title: "Points Claimed!",
-                description: `${MINING_REWARD} points have been added to your balance. A new session has started.`,
+                description: `${MINING_REWARD} points have been added. A new session has started.`,
             });
-            
-            isClaimingRef.current = false;
         } else {
             const points = (elapsedTimeMs / SESSION_DURATION_MS) * MINING_REWARD;
             const remainingMs = SESSION_DURATION_MS - elapsedTimeMs;
@@ -249,25 +182,19 @@ export default function Dashboard() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isMining, publicKey, toast]);
+  }, [userData, updateUserData, toast]);
 
   const handleVerifyTask = (taskName: TaskName) => {
-    if (verifyingTask || !publicKey) return;
+    if (verifyingTask || !publicKey || !userData) return;
 
     window.open(TASKS[taskName].url, '_blank', 'noopener,noreferrer');
     setVerifyingTask(taskName);
 
     setTimeout(async () => {
-        const newTasksCompleted = { ...tasksCompleted, [taskName]: true };
-        setTasksCompleted(newTasksCompleted);
-
-        const userKey = `user-data-${publicKey.toBase58()}`;
-        const userData = JSON.parse(localStorage.getItem(userKey) || "null");
-        if (userData) {
-            userData.tasksCompleted = newTasksCompleted;
-            localStorage.setItem(userKey, JSON.stringify(userData));
-        }
+        const newTasksCompleted = { ...userData.tasksCompleted, [taskName]: true };
         
+        await updateUserData({ tasksCompleted: newTasksCompleted });
+
         setVerifyingTask(null);
         toast({
             title: `Task Verified!`,
@@ -275,7 +202,7 @@ export default function Dashboard() {
         });
 
         const allTasksDone = Object.values(newTasksCompleted).every(Boolean);
-        if (allTasksDone) {
+        if (allTasksDone && !userData.miningActivated) {
             setTimeout(async () => {
                 await handleActivateMining();
             }, 2000);
@@ -284,7 +211,8 @@ export default function Dashboard() {
   };
 
   const handleCopy = () => {
-    const referralLink = `https://points.exnus.xyz/join?ref=${referralCode}`;
+    if (!userData?.referralCode) return;
+    const referralLink = `https://points.exnus.xyz/join?ref=${userData.referralCode}`;
     navigator.clipboard.writeText(referralLink);
     toast({
       title: "Copied to clipboard!",
@@ -292,15 +220,29 @@ export default function Dashboard() {
     });
   };
 
-  const totalPoints = basePoints;
+  if (loading) {
+      return (
+          <div className="flex justify-center items-center min-h-screen">
+              <Loader2 className="h-12 w-12 animate-spin text-accent" />
+          </div>
+      )
+  }
 
   const renderContent = () => {
+    if (!userData) {
+      return (
+        <div className="text-center">
+            <h2 className="text-2xl font-bold">Please connect your wallet to continue.</h2>
+        </div>
+      );
+    }
+
     switch(activePage) {
         case 'dashboard':
             return (
                 <DashboardContent
-                    miningActivated={miningActivated}
-                    tasksCompleted={tasksCompleted}
+                    miningActivated={userData.miningActivated}
+                    tasksCompleted={userData.tasksCompleted}
                     verifyingTask={verifyingTask}
                     TASK_ICONS={TASK_ICONS}
                     TASKS={TASKS}
@@ -309,17 +251,17 @@ export default function Dashboard() {
                     MINING_REWARD={MINING_REWARD}
                     timeRemaining={timeRemaining}
                     formatTime={formatTime}
-                    totalPoints={totalPoints}
-                    referralCode={referralCode}
+                    totalPoints={userData.points}
+                    referralCode={userData.referralCode}
                     handleCopy={handleCopy}
-                    referralCount={animatedReferralCount}
+                    referralCount={userData.referrals?.count || 0}
                     POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
                 />
             );
         case 'leaderboard':
             return <Leaderboard POINTS_PER_REFERRAL={POINTS_PER_REFERRAL} />;
         case 'referrals':
-            return <ReferralsList referrals={referrals} />;
+            return <ReferralsList referrals={userData.referrals} />;
         default:
             return null;
     }

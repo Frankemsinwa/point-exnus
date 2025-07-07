@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy } from 'lucide-react';
+import { Loader2, Trophy } from 'lucide-react';
 
 interface UserData {
     wallet: string;
@@ -17,43 +17,36 @@ interface LeaderboardProps {
 
 export default function Leaderboard({ POINTS_PER_REFERRAL }: LeaderboardProps) {
     const [leaderboardData, setLeaderboardData] = useState<UserData[]>([]);
-    const [mounted, setMounted] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        setMounted(true);
-        const users: UserData[] = [];
-        if (typeof window !== 'undefined' && window.localStorage) {
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith('user-data-')) {
-                    try {
-                        const data = JSON.parse(localStorage.getItem(key)!);
-                        const wallet = key.replace('user-data-', '');
-                        
-                        // Handle old and new referral data structure
-                        const referralCount = (data.referrals && typeof data.referrals === 'object') 
-                            ? (data.referrals.count || 0) 
-                            : (typeof data.referrals === 'number' ? data.referrals : 0);
-
-                        users.push({
-                            wallet,
-                            points: data.points || 0,
-                            referralCount: referralCount,
-                        });
-                    } catch (e) {
-                        console.error('Failed to parse user data for leaderboard', e);
-                    }
+        const fetchLeaderboard = async () => {
+            try {
+                setLoading(true);
+                const response = await fetch('/api/leaderboard');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch leaderboard');
                 }
+                const data = await response.json();
+                setLeaderboardData(data);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoading(false);
             }
-        }
-        users.sort((a, b) => b.points - a.points);
-        setLeaderboardData(users);
+        };
+
+        fetchLeaderboard();
     }, []);
 
     const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 
-    if (!mounted) {
-        return null; // Or a loading skeleton
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center w-full max-w-5xl mx-auto h-96">
+                <Loader2 className="h-12 w-12 animate-spin text-accent" />
+            </div>
+        );
     }
 
     return (
@@ -79,7 +72,7 @@ export default function Leaderboard({ POINTS_PER_REFERRAL }: LeaderboardProps) {
                                     <TableCell className="text-right font-bold">{new Intl.NumberFormat().format(user.points)}</TableCell>
                                 </TableRow>
                             ))}
-                             {leaderboardData.length === 0 && (
+                             {leaderboardData.length === 0 && !loading && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
                                         No data available for the leaderboard yet.
