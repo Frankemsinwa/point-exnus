@@ -84,15 +84,27 @@ export default function Dashboard() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ wallet }),
                 });
-                const createData = await createResponse.json();
-                if (!createResponse.ok) {
-                    throw new Error(createData.error || 'Failed to create user account.');
+
+                if (createResponse.ok) {
+                    const createData = await createResponse.json();
+                    setUserData(createData);
+                    return;
                 }
-                setUserData(createData);
-                return;
+                
+                if (createResponse.status === 409) {
+                    const retryGetResponse = await fetch(`/api/users/${wallet}`);
+                    const data = await retryGetResponse.json();
+                    if (!retryGetResponse.ok) {
+                        throw new Error(data.error || 'Failed to fetch user after creation conflict.');
+                    }
+                    setUserData(data);
+                    return;
+                }
+                
+                const errorData = await createResponse.json();
+                throw new Error(errorData.error || 'Failed to create user account.');
             }
 
-            // Handle other errors (e.g. 500)
             const errorData = await getResponse.json().catch(() => ({ error: `An unexpected server error occurred (${getResponse.status})` }));
             throw new Error(errorData.error || 'An unexpected error occurred.');
 
