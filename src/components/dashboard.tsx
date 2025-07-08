@@ -70,43 +70,21 @@ export default function Dashboard() {
     const fetchUserData = useCallback(async (wallet: string) => {
         setLoading(true);
         try {
-            const getResponse = await fetch(`/api/users/${wallet}`);
+            // A single API call to get or create the user.
+            // This logic is now handled on the server to prevent race conditions.
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wallet }),
+            });
 
-            if (getResponse.ok) {
-                const data = await getResponse.json();
-                setUserData(data);
-                return;
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load user data.');
             }
 
-            if (getResponse.status === 404) {
-                const createResponse = await fetch('/api/users', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ wallet }),
-                });
-
-                if (createResponse.ok) {
-                    const createData = await createResponse.json();
-                    setUserData(createData);
-                    return;
-                }
-                
-                if (createResponse.status === 409) {
-                    const retryGetResponse = await fetch(`/api/users/${wallet}`);
-                    const data = await retryGetResponse.json();
-                    if (!retryGetResponse.ok) {
-                        throw new Error(data.error || 'Failed to fetch user after creation conflict.');
-                    }
-                    setUserData(data);
-                    return;
-                }
-                
-                const errorData = await createResponse.json();
-                throw new Error(errorData.error || 'Failed to create user account.');
-            }
-
-            const errorData = await getResponse.json().catch(() => ({ error: `An unexpected server error occurred (${getResponse.status})` }));
-            throw new Error(errorData.error || 'An unexpected error occurred.');
+            setUserData(data);
 
         } catch (error: any) {
             console.error(error);
@@ -126,6 +104,7 @@ export default function Dashboard() {
     useEffect(() => {
         if (!userData) return;
 
+        // Use a default empty object for tasksCompleted to prevent crashes
         const tasks = userData.tasksCompleted || {};
         const allTasksDone = Object.values(tasks).every(Boolean);
 
