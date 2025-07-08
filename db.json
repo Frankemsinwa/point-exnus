@@ -16,7 +16,7 @@
       "miningSessionStart": 1751870261586
     },
     "FNzf4sZ7GZHJYEa3FngDtjdJSR45h2Qsq8RbHinDjc1t": {
-      "points": 100,
+      "points": 200,
       "referrals": {
         "count": 1,
         "referredUsers": [
@@ -33,7 +33,8 @@
         "discord": true
       },
       "miningActivated": true,
-      "miningSessionStart": 1751869918951
+      "miningSessionStart": 1751995627741,
+      "referralCodeApplied": true
     },
     "B23Lt4oFVzVYsqnUNkyz1yjzbobZXDik3Cbt8PQgDyYX": {
       "points": 0,

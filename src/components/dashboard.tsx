@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -26,7 +25,7 @@ const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 const MINING_DURATION = 24 * 60 * 60; // 24 hours in seconds
-const MINING_REWARD = 100;
+const MINING_REWARD = 1000;
 const POINTS_PER_REFERRAL = 100;
 
 type TaskName = 'x' | 'telegram' | 'discord';
@@ -116,28 +115,30 @@ export default function Dashboard() {
     }, [userData]);
     
     useEffect(() => {
-        if (userData?.miningActivated && userData.miningSessionStart) {
-            const intervalId = setInterval(() => {
-                const sessionStart = userData.miningSessionStart!;
-                const elapsedTime = (Date.now() - sessionStart) / 1000;
-                const remaining = MINING_DURATION - elapsedTime;
+        if (!userData?.miningActivated || !userData.miningSessionStart) {
+            return;
+        }
 
-                if (remaining <= 0) {
-                    setTimeRemaining(0);
-                    clearInterval(intervalId);
-                } else {
-                    setTimeRemaining(remaining);
-                }
-            }, 1000);
-
-            // This part is for the initial render, to avoid waiting 1 sec
+        const intervalId = setInterval(() => {
             const sessionStart = userData.miningSessionStart!;
             const elapsedTime = (Date.now() - sessionStart) / 1000;
             const remaining = MINING_DURATION - elapsedTime;
-            setTimeRemaining(Math.max(0, remaining));
 
-            return () => clearInterval(intervalId);
-        }
+            if (remaining <= 0) {
+                setTimeRemaining(0);
+                clearInterval(intervalId);
+            } else {
+                setTimeRemaining(remaining);
+            }
+        }, 1000);
+
+        // Initial update
+        const sessionStart = userData.miningSessionStart!;
+        const elapsedTime = (Date.now() - sessionStart) / 1000;
+        const remaining = MINING_DURATION - elapsedTime;
+        setTimeRemaining(Math.max(0, remaining));
+
+        return () => clearInterval(intervalId);
     }, [userData?.miningSessionStart, userData?.miningActivated]);
 
     const handleVerifyTask = useCallback(async (taskName: TaskName) => {
@@ -342,5 +343,3 @@ export default function Dashboard() {
         </Tabs>
     );
 }
-
-    
