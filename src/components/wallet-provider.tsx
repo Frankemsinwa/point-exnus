@@ -1,9 +1,5 @@
 "use client";
 
-// Polyfills required for the mobile wallet adapter
-import 'get-random-values';
-import 'fast-text-encoding';
-
 import React, { FC, useMemo, type ReactNode } from "react";
 import {
   ConnectionProvider,
@@ -13,7 +9,6 @@ import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
-import { SolanaMobileWalletAdapter } from "@solana-mobile/wallet-adapter-mobile";
 import { clusterApiUrl } from "@solana/web3.js";
 
 export const WalletProvider: FC<{ children: ReactNode }> = ({
@@ -36,15 +31,6 @@ export const WalletProvider: FC<{ children: ReactNode }> = ({
        */
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter({ network }),
-      /**
-       * The SolanaMobileWalletAdapter allows users on mobile browsers to connect
-       * to any wallet app that supports the mobile wallet standard. It is crucial
-       * for a seamless mobile experience.
-       */
-      new SolanaMobileWalletAdapter({
-        appIdentity: { name: "Exnus Points" },
-        cluster: network,
-      }),
     ],
     [network]
   );
