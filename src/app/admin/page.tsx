@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Download, Database, Users, Coins, Trophy, ShieldAlert, LockKeyhole } from 'lucide-react';
+import { Loader2, Download, Database, Users, Coins, Trophy, ShieldAlert, LockKeyhole, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,43 +26,45 @@ const TOTAL_AIRDROP_TOKENS = 100_000_000;
 
 export default function AdminDashboard() {
     const { toast } = useToast();
-    const [authStatus, setAuthStatus] = useState<'authorized' | 'unauthorized'>('unauthorized');
+    const { publicKey, connected, connecting } = useWallet();
+
+    const [authStatus, setAuthStatus] = useState<'idle' | 'checking' | 'authorized' | 'unauthorized'>('idle');
     const [users, setUsers] = useState<UserData[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-
-    const [password, setPassword] = useState('');
-    const [isCheckingAuth, setIsCheckingAuth] = useState(false);
 
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const [newPoints, setNewPoints] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
 
-    const handleAuth = async () => {
-        setIsCheckingAuth(true);
-        try {
-            const response = await fetch('/api/admin/auth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-            if (!response.ok) {
-                 const result = await response.json();
-                 throw new Error(result.error || 'Auth check failed');
+    useEffect(() => {
+        const checkAuth = async () => {
+            if (!connected || !publicKey) {
+                setAuthStatus('idle');
+                return;
             }
-            const { authorized } = await response.json();
-            setAuthStatus(authorized ? 'authorized' : 'unauthorized');
-            if (!authorized) {
-                toast({ title: "Access Denied", description: "The password you entered is incorrect.", variant: "destructive" });
+
+            setAuthStatus('checking');
+            try {
+                const response = await fetch('/api/admin/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wallet: publicKey.toBase58() })
+                });
+                const { authorized } = await response.json();
+                if (authorized) {
+                    setAuthStatus('authorized');
+                } else {
+                    setAuthStatus('unauthorized');
+                }
+            } catch (error) {
+                console.error(error);
+                setAuthStatus('unauthorized');
+                toast({ title: "Authentication Error", description: "Could not verify admin status.", variant: "destructive" });
             }
-        } catch (error: any) {
-            console.error(error);
-            setAuthStatus('unauthorized');
-            toast({ title: "Authentication Error", description: error.message || "Could not verify password.", variant: "destructive" });
-        } finally {
-            setIsCheckingAuth(false);
-        }
-    };
+        };
+        checkAuth();
+    }, [connected, publicKey, toast]);
 
     useEffect(() => {
         if (authStatus !== 'authorized') return;
@@ -143,7 +147,7 @@ export default function AdminDashboard() {
     const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 
     const handlePointUpdate = async () => {
-        if (!editingUser) return;
+        if (!editingUser || !publicKey) return;
 
         const pointsValue = parseInt(newPoints, 10);
         if (isNaN(pointsValue) || pointsValue < 0) {
@@ -156,7 +160,7 @@ export default function AdminDashboard() {
             const response = await fetch(`/api/admin/users/${editingUser.wallet}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminPassword: password, points: pointsValue })
+                body: JSON.stringify({ adminWallet: publicKey.toBase58(), points: pointsValue })
             });
             const result = await response.json();
             if (!response.ok) {
@@ -180,29 +184,35 @@ export default function AdminDashboard() {
         }
     };
 
+    const AuthScreen = () => (
+        <div className="flex flex-col min-h-screen items-center justify-center bg-background text-foreground p-4 text-center">
+            {connecting || authStatus === 'checking' ? (
+                <Loader2 className="h-16 w-16 animate-spin text-accent" />
+            ) : authStatus === 'unauthorized' ? (
+                <>
+                    <AlertCircle className="h-16 w-16 text-destructive mb-4" />
+                    <h1 className="text-3xl font-bold">Access Denied</h1>
+                    <p className="text-muted-foreground mt-2 max-w-md">The connected wallet is not authorized for admin access.</p>
+                    <div className="mt-8">
+                        <WalletMultiButton />
+                    </div>
+                </>
+            ) : (
+                <>
+                    <LockKeyhole className="h-16 w-16 text-accent mb-4" />
+                    <h1 className="text-3xl font-bold">Admin Access</h1>
+                    <p className="text-muted-foreground mt-2 max-w-md">Please connect the admin wallet to access the dashboard.</p>
+                    <div className="mt-8">
+                        <WalletMultiButton />
+                    </div>
+                </>
+            )}
+        </div>
+    );
 
-    if (authStatus === 'unauthorized') {
-        return (
-            <div className="flex flex-col min-h-screen items-center justify-center bg-background text-foreground p-4 text-center">
-                 <LockKeyhole className="h-16 w-16 text-destructive mb-4" />
-                <h1 className="text-3xl font-bold">Admin Access</h1>
-                <p className="text-muted-foreground mt-2 max-w-md">Please enter the admin password to access the dashboard.</p>
-                <div className="mt-8 w-full max-w-sm space-y-4">
-                    <Input 
-                        type="password"
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
-                        className="text-center"
-                    />
-                    <Button onClick={handleAuth} disabled={isCheckingAuth || !password} className="w-full">
-                        {isCheckingAuth && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Authenticate
-                    </Button>
-                </div>
-            </div>
-        );
+
+    if (authStatus !== 'authorized') {
+        return <AuthScreen />;
     }
     
     return (
@@ -214,6 +224,7 @@ export default function AdminDashboard() {
                         Admin Dashboard
                     </h1>
                     <div className="flex items-center gap-4">
+                         <WalletMultiButton />
                         <Button onClick={handleExport} disabled={users.length === 0 || loadingData}>
                             <Download className="mr-2 h-4 w-4" />
                             Export Snapshot

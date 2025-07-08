@@ -4,20 +4,20 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
     try {
-        const { password } = await request.json();
+        const { wallet } = await request.json();
 
-        if (!password) {
-            return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+        if (!wallet) {
+            return NextResponse.json({ error: 'Wallet is required' }, { status: 400 });
         }
 
-        const adminPassword = process.env.ADMIN_PASSWORD;
+        const adminWallet = process.env.ADMIN_WALLET;
 
-        if (!adminPassword) {
-            console.error("ADMIN_PASSWORD environment variable not set.");
+        if (!adminWallet) {
+            console.error("ADMIN_WALLET environment variable not set.");
             return NextResponse.json({ error: 'Admin functionality is not configured.' }, { status: 500 });
         }
         
-        const authorized = password === adminPassword;
+        const authorized = wallet.toLowerCase() === adminWallet.toLowerCase();
 
         return NextResponse.json({ authorized });
 
