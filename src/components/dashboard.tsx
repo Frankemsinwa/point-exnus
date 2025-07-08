@@ -117,22 +117,26 @@ export default function Dashboard() {
     
     useEffect(() => {
         if (userData?.miningActivated && userData.miningSessionStart) {
-            const updateTimer = () => {
+            const intervalId = setInterval(() => {
                 const sessionStart = userData.miningSessionStart!;
                 const elapsedTime = (Date.now() - sessionStart) / 1000;
                 const remaining = MINING_DURATION - elapsedTime;
 
                 if (remaining <= 0) {
                     setTimeRemaining(0);
-                    clearInterval(interval);
+                    clearInterval(intervalId);
                 } else {
                     setTimeRemaining(remaining);
                 }
-            };
-            
-            updateTimer();
-            const interval = setInterval(updateTimer, 1000);
-            return () => clearInterval(interval);
+            }, 1000);
+
+            // This part is for the initial render, to avoid waiting 1 sec
+            const sessionStart = userData.miningSessionStart!;
+            const elapsedTime = (Date.now() - sessionStart) / 1000;
+            const remaining = MINING_DURATION - elapsedTime;
+            setTimeRemaining(Math.max(0, remaining));
+
+            return () => clearInterval(intervalId);
         }
     }, [userData?.miningSessionStart, userData?.miningActivated]);
 
