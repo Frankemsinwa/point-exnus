@@ -33,8 +33,14 @@ export async function PUT(request: Request, { params }: { params: { wallet: stri
             return NextResponse.json({ error: 'Admin wallet is required for authorization' }, { status: 401 });
         }
         
-        const requiredAdminWallet = process.env.ADMIN_WALLET;
-        if (!requiredAdminWallet || adminWallet.toLowerCase() !== requiredAdminWallet.toLowerCase()) {
+        const adminWalletsEnv = process.env.ADMIN_WALLETS;
+        if (!adminWalletsEnv) {
+            console.error("ADMIN_WALLETS environment variable not set.");
+            return NextResponse.json({ error: 'Admin functionality is not configured.' }, { status: 500 });
+        }
+
+        const adminWallets = adminWalletsEnv.split(',').map(w => w.trim().toLowerCase());
+        if (!adminWallets.includes(adminWallet.toLowerCase())) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
         }
         

@@ -10,14 +10,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Wallet is required' }, { status: 400 });
         }
 
-        const adminWallet = process.env.ADMIN_WALLET;
+        const adminWalletsEnv = process.env.ADMIN_WALLETS;
 
-        if (!adminWallet) {
-            console.error("ADMIN_WALLET environment variable not set.");
+        if (!adminWalletsEnv) {
+            console.error("ADMIN_WALLETS environment variable not set.");
             return NextResponse.json({ error: 'Admin functionality is not configured.' }, { status: 500 });
         }
         
-        const authorized = wallet.toLowerCase() === adminWallet.toLowerCase();
+        const adminWallets = adminWalletsEnv.split(',').map(w => w.trim().toLowerCase());
+        const authorized = adminWallets.includes(wallet.toLowerCase());
 
         return NextResponse.json({ authorized });
 
