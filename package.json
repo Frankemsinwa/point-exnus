@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "supabase:types": "supabase gen types typescript --project-id wmsmjjqpljfnnkpldskt > src/lib/database.types.ts"
+    "supabase:types": "npx supabase gen types typescript --project-id wmsmjjqpljfnnkpldskt --schema public > src/types/database.ts"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.13.0",
