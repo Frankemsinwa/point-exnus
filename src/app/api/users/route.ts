@@ -1,29 +1,10 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseAdmin } from '@/lib/supabase';
+import { keysToCamel } from '@/lib/utils';
 
-const dbPath = path.resolve(process.cwd(), 'db.json');
 const INITIAL_POINTS = 0;
-
-async function readDb() {
-  try {
-    const data = await fs.readFile(dbPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      await fs.writeFile(dbPath, JSON.stringify({ users: {} }, null, 2), 'utf-8');
-      return { users: {} };
-    }
-    console.error('Failed to read or create db.json:', error);
-    return { users: {} };
-  }
-}
-
-async function writeDb(data: any) {
-  await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf-8');
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -34,28 +15,56 @@ export async function POST(request: NextRequest) {
         }
 
         const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.ip;
-        const db = await readDb();
+        
+        const { data: existingUser, error: checkError } = await supabaseAdmin
+            .from('users')
+            .select('wallet_address')
+            .eq('wallet_address', wallet)
+            .single();
 
-        if (db.users[wallet]) {
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116: "exact one row not found"
+             console.error('Supabase check error:', checkError);
+             return NextResponse.json({ error: 'Database error while checking for user' }, { status: 500 });
+        }
+
+        if (existingUser) {
             return NextResponse.json({ error: 'User already exists' }, { status: 409 });
         }
 
         const newReferralCode = wallet.substring(0, 8).toUpperCase();
-        const newUser: any = {
+        
+        const newUser = {
+            wallet_address: wallet,
             points: INITIAL_POINTS,
-            referrals: { count: 0, referredUsers: [] },
-            referralCode: newReferralCode,
-            tasksCompleted: { x: false, telegram: false, discord: false },
-            miningActivated: false,
-            miningSessionStart: null,
-            referralCodeApplied: false,
-            ipAddress: ip,
+            referral_code: newReferralCode,
+            tasks_completed: { x: false, telegram: false, discord: false },
+            mining_activated: false,
+            mining_session_start: null,
+            referral_code_applied: false,
+            ip_address: ip,
         };
 
-        db.users[wallet] = newUser;
-        await writeDb(db);
+        const { data, error: insertError } = await supabaseAdmin
+            .from('users')
+            .insert(newUser)
+            .select()
+            .single();
 
-        return NextResponse.json(newUser, { status: 201 });
+        if (insertError) {
+             console.error('Supabase insert error:', insertError);
+             return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+        }
+        
+        // The user data from the dashboard expects a `referrals` object.
+        const responseUser = {
+            ...keysToCamel(data),
+            referrals: {
+                count: 0,
+                referredUsers: []
+            }
+        };
+
+        return NextResponse.json(responseUser, { status: 201 });
     } catch (error) {
         console.error('POST User API Error:', error);
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });

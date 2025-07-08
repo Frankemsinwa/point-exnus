@@ -1,29 +1,44 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseAdmin } from '@/lib/supabase';
+import { keysToCamel } from '@/lib/utils';
 
-const dbPath = path.resolve(process.cwd(), 'db.json');
 const POINTS_PER_REFERRAL = 100;
 const JOIN_BONUS_FOR_REFEREE = 10;
 
-async function readDb() {
-  try {
-    const data = await fs.readFile(dbPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      await fs.writeFile(dbPath, JSON.stringify({ users: {} }, null, 2), 'utf-8');
-      return { users: {} };
+async function fetchUserWithReferrals(wallet: string) {
+    const { data: userData, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .eq('wallet_address', wallet)
+        .single();
+    
+    if (userError) {
+        if (userError.code === 'PGRST116') return null;
+        throw userError;
     }
-    console.error('Failed to read or create db.json:', error);
-    return { users: {} };
-  }
-}
 
-async function writeDb(data: any) {
-  await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf-8');
+    const { data: referredUsers, error: referralsError } = await supabaseAdmin
+        .from('referred_users')
+        .select('referee_wallet, join_date')
+        .eq('referrer_wallet', wallet);
+
+    if (referralsError) throw referralsError;
+    
+    const userCamel = keysToCamel(userData);
+
+    return {
+        ...userCamel,
+        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+        referrals: {
+            count: referredUsers.length,
+            referredUsers: referredUsers.map(ru => ({
+                wallet: ru.referee_wallet,
+                joinDate: ru.join_date,
+            })),
+        },
+    };
 }
 
 export async function POST(request: Request, { params }: { params: { wallet: string } }) {
@@ -35,51 +50,49 @@ export async function POST(request: Request, { params }: { params: { wallet: str
             return NextResponse.json({ error: 'Referral code is required' }, { status: 400 });
         }
 
-        const db = await readDb();
-        const user = db.users[wallet];
+        const { data: user, error: userError } = await supabaseAdmin
+            .from('users')
+            .select('points, referral_code, referral_code_applied')
+            .eq('wallet_address', wallet)
+            .single();
 
-        if (!user) {
+        if (userError || !user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        if (user.referralCodeApplied) {
+        if (user.referral_code_applied) {
             return NextResponse.json({ error: 'Referral code has already been applied' }, { status: 400 });
         }
         
-        if (user.referralCode.toUpperCase() === referralCode.toUpperCase()) {
+        if (user.referral_code.toUpperCase() === referralCode.toUpperCase()) {
             return NextResponse.json({ error: 'Cannot use your own referral code' }, { status: 400 });
         }
 
-        let referrerKey = null;
-        for (const key in db.users) {
-            if (db.users[key].referralCode.toUpperCase() === referralCode.toUpperCase()) {
-                referrerKey = key;
-                break;
-            }
-        }
-
-        if (referrerKey) {
-            user.points += JOIN_BONUS_FOR_REFEREE;
-            
-            db.users[referrerKey].points += POINTS_PER_REFERRAL;
-            if (!db.users[referrerKey].referrals) {
-                 db.users[referrerKey].referrals = { count: 0, referredUsers: [] };
-            }
-            db.users[referrerKey].referrals.count += 1;
-            db.users[referrerKey].referrals.referredUsers.push({
-                wallet: wallet,
-                joinDate: new Date().toISOString(),
-            });
-            
-            user.referralCodeApplied = true;
-            db.users[wallet] = user;
-            await writeDb(db);
-
-            return NextResponse.json(user);
-
-        } else {
+        const { data: referrer, error: referrerError } = await supabaseAdmin
+            .from('users')
+            .select('wallet_address, points')
+            .eq('referral_code', referralCode.toUpperCase())
+            .single();
+        
+        if (referrerError || !referrer) {
              return NextResponse.json({ error: 'Invalid referral code' }, { status: 404 });
         }
+
+        // Using a transaction to ensure all or nothing
+        const { error: rpcError } = await supabaseAdmin.rpc('apply_referral', {
+            p_referee_wallet: wallet,
+            p_referrer_wallet: referrer.wallet_address,
+            p_referee_bonus: JOIN_BONUS_FOR_REFEREE,
+            p_referrer_bonus: POINTS_PER_REFERRAL
+        });
+
+        if (rpcError) {
+            console.error('RPC apply_referral error:', rpcError);
+            return NextResponse.json({ error: 'Failed to apply referral code' }, { status: 500 });
+        }
+        
+        const updatedUser = await fetchUserWithReferrals(wallet);
+        return NextResponse.json(updatedUser);
 
     } catch (error) {
         console.error('Apply Referral API Error:', error);

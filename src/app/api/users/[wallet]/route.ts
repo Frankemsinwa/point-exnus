@@ -1,35 +1,47 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseAdmin } from '@/lib/supabase';
+import { keysToCamel, keysToSnake } from '@/lib/utils';
 
-const dbPath = path.resolve(process.cwd(), 'db.json');
-
-async function readDb() {
-  try {
-    const data = await fs.readFile(dbPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-        await fs.writeFile(dbPath, JSON.stringify({ users: {} }, null, 2), 'utf-8');
-        return { users: {} };
+async function fetchUserWithReferrals(wallet: string) {
+    const { data: userData, error: userError } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .eq('wallet_address', wallet)
+        .single();
+    
+    if (userError) {
+        if (userError.code === 'PGRST116') return null;
+        throw userError;
     }
-    console.error('Failed to read or create db.json:', error);
-    return { users: {} };
-  }
-}
 
-async function writeDb(data: any) {
-  await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf-8');
+    const { data: referredUsers, error: referralsError } = await supabaseAdmin
+        .from('referred_users')
+        .select('referee_wallet, join_date')
+        .eq('referrer_wallet', wallet);
+
+    if (referralsError) throw referralsError;
+    
+    const userCamel = keysToCamel(userData);
+
+    return {
+        ...userCamel,
+        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+        referrals: {
+            count: referredUsers.length,
+            referredUsers: referredUsers.map(ru => ({
+                wallet: ru.referee_wallet,
+                joinDate: ru.join_date,
+            })),
+        },
+    };
 }
 
 export async function GET(request: Request, { params }: { params: { wallet: string } }) {
   const { wallet } = params;
   try {
-    const db = await readDb();
-    const user = db.users[wallet];
-
+    const user = await fetchUserWithReferrals(wallet);
     if (user) {
         return NextResponse.json(user);
     } else {
@@ -45,15 +57,37 @@ export async function PUT(request: Request, { params }: { params: { wallet: stri
   const { wallet } = params;
   try {
     const updatedData = await request.json();
-    const db = await readDb();
 
-    if (db.users[wallet]) {
-        db.users[wallet] = { ...db.users[wallet], ...updatedData };
-        await writeDb(db);
-        return NextResponse.json(db.users[wallet]);
-    } else {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // Convert miningSessionStart from number back to ISO string for DB
+    if (updatedData.miningSessionStart) {
+        updatedData.miningSessionStart = new Date(updatedData.miningSessionStart).toISOString();
     }
+    
+    // The PUT request might contain the 'referrals' object, which is not a column in the 'users' table.
+    // We should remove it before trying to update the database.
+    if ('referrals' in updatedData) {
+        delete updatedData.referrals;
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from('users')
+        .update(keysToSnake(updatedData))
+        .eq('wallet_address', wallet)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase PUT error:', error);
+        if (error.code === 'PGRST116') {
+             return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    }
+
+    // After updating, we refetch the user with referrals to return the full, consistent object.
+    const fullUser = await fetchUserWithReferrals(wallet);
+    return NextResponse.json(fullUser);
+
   } catch (error) {
     console.error('PUT User API Error:', error);
     return NextResponse.json({ error: 'Failed to update user data' }, { status: 500 });

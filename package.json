@@ -43,6 +43,7 @@
     "@solana/wallet-adapter-phantom": "^0.9.24",
     "@solana/wallet-adapter-solflare": "^0.6.28",
     "@solana/web3.js": "^1.91.8",
+    "@supabase/supabase-js": "^2.43.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

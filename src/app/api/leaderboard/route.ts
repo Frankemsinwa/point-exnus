@@ -1,36 +1,27 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-const dbPath = path.resolve(process.cwd(), 'db.json');
-
-async function readDb() {
-  try {
-    const data = await fs.readFile(dbPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      await fs.writeFile(dbPath, JSON.stringify({ users: {} }, null, 2), 'utf-8');
-      return { users: {} };
-    }
-    console.error('Failed to read or create db.json:', error);
-    return { users: {} };
-  }
-}
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET() {
     try {
-        const db = await readDb();
-        const users = Object.entries(db.users || {}).map(([wallet, data]: [string, any]) => ({
-            wallet,
-            points: data.points || 0,
-            referralCount: (data.referrals && data.referrals.count) || 0,
-        }));
+        const { data, error } = await supabaseAdmin
+            .rpc('get_leaderboard');
+        
+        if (error) {
+            console.error('Leaderboard RPC Error:', error);
+            throw error;
+        }
 
-        users.sort((a, b) => b.points - a.points);
+        // The RPC function returns the data in the desired shape.
+        const users = data.map((user: any) => ({
+            wallet: user.wallet_address,
+            points: user.points,
+            referralCount: user.referral_count,
+        }));
+        
         return NextResponse.json(users);
+
     } catch (error) {
         console.error('Leaderboard API Error:', error);
         return NextResponse.json({ error: 'Failed to fetch leaderboard data' }, { status: 500 });

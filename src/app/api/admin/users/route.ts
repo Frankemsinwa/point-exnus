@@ -1,32 +1,23 @@
 'use server';
 
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { supabaseAdmin } from '@/lib/supabase';
 
-const dbPath = path.resolve(process.cwd(), 'db.json');
-
-async function readDb() {
-  try {
-    const data = await fs.readFile(dbPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      return { users: {} };
-    }
-    console.error('Failed to read db.json:', error);
-    return { users: {} };
-  }
-}
 
 export async function GET() {
     try {
-        const db = await readDb();
-        const users = Object.entries(db.users || {}).map(([wallet, data]: [string, any]) => ({
-            wallet,
-            points: data.points || 0,
-            referralCount: data.referrals?.count || 0,
-            ipAddress: data.ipAddress || null,
+        const { data, error } = await supabaseAdmin.rpc('get_all_users_with_referral_counts');
+
+        if (error) {
+            console.error('Admin Users RPC Error:', error);
+            throw error;
+        }
+
+        const users = data.map((user: any) => ({
+            wallet: user.wallet_address,
+            points: user.points,
+            referralCount: user.referral_count,
+            ipAddress: user.ip_address || null,
         }));
         
         return NextResponse.json(users);
