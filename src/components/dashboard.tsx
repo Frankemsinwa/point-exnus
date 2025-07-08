@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -67,30 +68,42 @@ export default function Dashboard() {
     const [isClaiming, setIsClaiming] = useState(false);
 
     const fetchUserData = useCallback(async (wallet: string) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            let response = await fetch(`/api/users/${wallet}`);
-            let data;
-            if (response.status === 404) {
-                response = await fetch('/api/users', {
+            const getResponse = await fetch(`/api/users/${wallet}`);
+
+            if (getResponse.ok) {
+                const data = await getResponse.json();
+                setUserData(data);
+                return;
+            }
+
+            if (getResponse.status === 404) {
+                const createResponse = await fetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ wallet }),
                 });
-                data = await response.json();
-                 if (!response.ok) throw new Error('Failed to create user.');
-            } else {
-                 data = await response.json();
-                 if (!response.ok) throw new Error('Failed to fetch user.');
+                const createData = await createResponse.json();
+                if (!createResponse.ok) {
+                    throw new Error(createData.error || 'Failed to create user account.');
+                }
+                setUserData(createData);
+                return;
             }
-            setUserData(data);
-        } catch (error) {
+
+            // Handle other errors (e.g. 500)
+            const errorData = await getResponse.json().catch(() => ({ error: `An unexpected server error occurred (${getResponse.status})` }));
+            throw new Error(errorData.error || 'An unexpected error occurred.');
+
+        } catch (error: any) {
             console.error(error);
-            toast({ title: 'Error', description: 'Could not load user data.', variant: 'destructive' });
+            toast({ title: 'Error', description: error.message || 'Could not load user data.', variant: 'destructive' });
         } finally {
             setLoading(false);
         }
     }, [toast]);
+
 
     useEffect(() => {
         if (publicKey) {
@@ -101,7 +114,7 @@ export default function Dashboard() {
     useEffect(() => {
         if (!userData) return;
 
-        const allTasksDone = Object.values(userData.tasksCompleted).every(Boolean);
+        const allTasksDone = userData.tasksCompleted && Object.values(userData.tasksCompleted).every(Boolean);
 
         if (!allTasksDone) {
             setOnboardingStep('tasks');
@@ -116,6 +129,7 @@ export default function Dashboard() {
     
     useEffect(() => {
         if (!userData?.miningActivated || !userData.miningSessionStart) {
+            setTimeRemaining(0);
             return;
         }
 
@@ -123,7 +137,7 @@ export default function Dashboard() {
             const sessionStart = userData.miningSessionStart!;
             const elapsedTime = (Date.now() - sessionStart) / 1000;
             const remaining = MINING_DURATION - elapsedTime;
-
+            
             if (remaining <= 0) {
                 setTimeRemaining(0);
                 clearInterval(intervalId);
@@ -131,12 +145,6 @@ export default function Dashboard() {
                 setTimeRemaining(remaining);
             }
         }, 1000);
-
-        // Initial update
-        const sessionStart = userData.miningSessionStart!;
-        const elapsedTime = (Date.now() - sessionStart) / 1000;
-        const remaining = MINING_DURATION - elapsedTime;
-        setTimeRemaining(Math.max(0, remaining));
 
         return () => clearInterval(intervalId);
     }, [userData?.miningSessionStart, userData?.miningActivated]);
@@ -249,9 +257,10 @@ export default function Dashboard() {
     };
 
     const minedPoints = useMemo(() => {
-        if (!userData?.miningActivated || !userData.miningSessionStart) return 0;
-        const elapsedTime = (Date.now() - userData.miningSessionStart) / 1000;
-        if (elapsedTime >= MINING_DURATION) return MINING_REWARD;
+        if (!userData?.miningActivated || !userData.miningSessionStart || timeRemaining <= 0) {
+            return MINING_REWARD;
+        }
+        const elapsedTime = MINING_DURATION - timeRemaining;
         return (elapsedTime / MINING_DURATION) * MINING_REWARD;
     }, [userData?.miningActivated, userData?.miningSessionStart, timeRemaining]);
 
@@ -263,7 +272,8 @@ export default function Dashboard() {
     };
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(userData?.referralCode || '');
+        if (!userData?.referralCode) return;
+        navigator.clipboard.writeText(userData.referralCode);
         toast({ title: 'Copied to clipboard!' });
     };
 
