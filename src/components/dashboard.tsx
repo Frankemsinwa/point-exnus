@@ -126,7 +126,8 @@ export default function Dashboard() {
     useEffect(() => {
         if (!userData) return;
 
-        const allTasksDone = userData.tasksCompleted && Object.values(userData.tasksCompleted).every(Boolean);
+        const tasks = userData.tasksCompleted || {};
+        const allTasksDone = Object.values(tasks).every(Boolean);
 
         if (!allTasksDone) {
             setOnboardingStep('tasks');
@@ -166,7 +167,7 @@ export default function Dashboard() {
         setVerifyingTask(taskName);
         try {
             await new Promise(res => setTimeout(res, 1500));
-            const updatedTasks = { ...userData.tasksCompleted, [taskName]: true };
+            const updatedTasks = { ...(userData.tasksCompleted || {}), [taskName]: true };
             const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
