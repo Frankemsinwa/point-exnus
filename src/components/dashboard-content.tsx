@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ interface DashboardContentProps {
     handleCopy?: () => void;
     referralCount?: number;
     POINTS_PER_REFERRAL?: number;
+    isClaiming?: boolean;
+    handleClaimRewards?: () => void;
 }
 
 const TasksView = ({ tasksCompleted, verifyingTask, TASK_ICONS, TASKS, handleVerifyTask }: Pick<DashboardContentProps, 'tasksCompleted' | 'verifyingTask' | 'TASK_ICONS' | 'TASKS' | 'handleVerifyTask'>) => (
@@ -89,17 +92,27 @@ const ActivateView = ({ handleActivateMining, isActivating }: Pick<DashboardCont
 const DashboardView = ({
     minedPoints = 0, MINING_REWARD = 0, timeRemaining = 0, formatTime = () => '',
     totalPoints = 0, referralCode = '', handleCopy = () => {}, referralCount = 0,
-    POINTS_PER_REFERRAL = 0
+    POINTS_PER_REFERRAL = 0, isClaiming, handleClaimRewards
 }: Omit<DashboardContentProps, 'onboardingStep' | 'tasksCompleted' | 'verifyingTask' | 'TASK_ICONS' | 'TASKS' | 'handleVerifyTask' | 'isActivating' | 'handleActivateMining'>) => (
     <main className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
         <Card className="md:col-span-3 bg-secondary/30 border-accent/30 shadow-lg shadow-accent/5">
             <CardHeader>
                 <CardTitle className="text-lg font-medium text-muted-foreground flex items-center gap-2">
-                    <Loader2 className="text-accent animate-spin" />
-                    Mining Session
+                    {timeRemaining > 0 ? (
+                        <>
+                            <Loader2 className="text-accent animate-spin" />
+                            Mining Session
+                        </>
+                    ) : (
+                         <>
+                            <CheckCircle2 className="text-green-500" />
+                            Session Complete
+                        </>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent>
+            {timeRemaining > 0 ? (
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col sm:flex-row justify-between items-baseline gap-2">
                         <p className="text-3xl font-bold text-primary">
@@ -114,6 +127,16 @@ const DashboardView = ({
                         You are mining {MINING_REWARD} PTS. Points will be added to your balance when the session ends.
                     </p>
                 </div>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center gap-4 text-center">
+                        <p className="text-xl font-semibold">You've mined {MINING_REWARD} points!</p>
+                        <p className="text-muted-foreground">Claim your rewards to add them to your balance and start a new session.</p>
+                        <Button onClick={handleClaimRewards} disabled={isClaiming} size="lg">
+                            {isClaiming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Gift className="mr-2 h-4 w-4" />}
+                            Claim {MINING_REWARD} Points
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
 
@@ -170,7 +193,7 @@ const DashboardView = ({
             </CardHeader>
             <CardContent>
                 <p className="text-3xl font-bold">
-                {new Intl.NumberFormat().format(referralCount * POINTS_PER_REFERRAL)}
+                {new Intl.NumberFormat().format((referralCount || 0) * (POINTS_PER_REFERRAL || 0))}
                 </p>
             </CardContent>
             </Card>
@@ -190,3 +213,5 @@ export default function DashboardContent(props: DashboardContentProps) {
         </div>
     );
 }
+
+    

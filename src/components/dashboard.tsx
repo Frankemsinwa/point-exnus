@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -64,6 +65,7 @@ export default function Dashboard() {
 
     const [referralCodeInput, setReferralCodeInput] = useState('');
     const [isApplyingReferral, setIsApplyingReferral] = useState(false);
+    const [isClaiming, setIsClaiming] = useState(false);
 
     const fetchUserData = useCallback(async (wallet: string) => {
         try {
@@ -115,27 +117,29 @@ export default function Dashboard() {
     
     useEffect(() => {
         if (userData?.miningActivated && userData.miningSessionStart) {
-            const interval = setInterval(() => {
+            const updateTimer = () => {
                 const sessionStart = userData.miningSessionStart!;
                 const elapsedTime = (Date.now() - sessionStart) / 1000;
                 const remaining = MINING_DURATION - elapsedTime;
 
                 if (remaining <= 0) {
                     setTimeRemaining(0);
-                    // Add logic to claim rewards and restart session
+                    clearInterval(interval);
                 } else {
                     setTimeRemaining(remaining);
                 }
-            }, 1000);
+            };
+            
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
             return () => clearInterval(interval);
         }
-    }, [userData]);
+    }, [userData?.miningSessionStart, userData?.miningActivated]);
 
     const handleVerifyTask = useCallback(async (taskName: TaskName) => {
         if (!publicKey || !userData) return;
         setVerifyingTask(taskName);
         try {
-            // Simulate API call
             await new Promise(res => setTimeout(res, 1500));
             const updatedTasks = { ...userData.tasksCompleted, [taskName]: true };
             const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
@@ -175,6 +179,23 @@ export default function Dashboard() {
             setIsApplyingReferral(false);
         }
     };
+    
+    const handleSkipReferral = async () => {
+        if (!publicKey) return;
+        try {
+            const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ referralCodeApplied: true }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error("Failed to skip referral step");
+            setUserData(data);
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Could not skip referral step.', variant: 'destructive' });
+        }
+    };
 
     const handleActivateMining = async () => {
         if (!publicKey) return;
@@ -197,12 +218,37 @@ export default function Dashboard() {
         }
     };
 
+    const handleClaimRewards = async () => {
+        if (!publicKey || !userData) return;
+        setIsClaiming(true);
+        try {
+            const newPoints = userData.points + MINING_REWARD;
+            const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    points: newPoints,
+                    miningSessionStart: Date.now()
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error("Failed to claim rewards");
+            setUserData(data);
+            toast({ title: "Rewards Claimed!", description: `${MINING_REWARD} points have been added to your balance.` });
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Claim Failed', variant: 'destructive' });
+        } finally {
+            setIsClaiming(false);
+        }
+    };
+
     const minedPoints = useMemo(() => {
         if (!userData?.miningActivated || !userData.miningSessionStart) return 0;
         const elapsedTime = (Date.now() - userData.miningSessionStart) / 1000;
-        if (elapsedTime > MINING_DURATION) return MINING_REWARD;
+        if (elapsedTime >= MINING_DURATION) return MINING_REWARD;
         return (elapsedTime / MINING_DURATION) * MINING_REWARD;
-    }, [userData, timeRemaining]);
+    }, [userData?.miningActivated, userData?.miningSessionStart, timeRemaining]);
 
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -242,7 +288,7 @@ export default function Dashboard() {
                             {isApplyingReferral ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                             Apply Code
                         </Button>
-                        <Button variant="link" onClick={() => setUserData(d => d ? {...d, referralCodeApplied: true} : null)}>
+                        <Button variant="link" onClick={handleSkipReferral}>
                             I don't have a code
                         </Button>
                     </CardContent>
@@ -279,6 +325,8 @@ export default function Dashboard() {
                     handleCopy={handleCopy}
                     referralCount={userData.referrals.count}
                     POINTS_PER_REFERRAL={POINTS_PER_REFERRAL}
+                    isClaiming={isClaiming}
+                    handleClaimRewards={handleClaimRewards}
                 />
             </TabsContent>
             <TabsContent value="referrals">
@@ -290,3 +338,5 @@ export default function Dashboard() {
         </Tabs>
     );
 }
+
+    
