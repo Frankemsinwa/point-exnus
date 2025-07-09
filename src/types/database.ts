@@ -41,35 +41,38 @@ export type Database = {
       users: {
         Row: {
           created_at: string
-          ip_address: string | null
           mining_activated: boolean
           mining_session_start: string | null
           points: number
           referral_code: string
           referral_code_applied: boolean
-          tasks_completed: Json
+          task_discord_completed: boolean
+          task_telegram_completed: boolean
+          task_x_completed: boolean
           wallet_address: string
         }
         Insert: {
           created_at?: string
-          ip_address?: string | null
           mining_activated?: boolean
           mining_session_start?: string | null
           points?: number
           referral_code: string
           referral_code_applied?: boolean
-          tasks_completed?: Json
+          task_discord_completed?: boolean
+          task_telegram_completed?: boolean
+          task_x_completed?: boolean
           wallet_address: string
         }
         Update: {
           created_at?: string
-          ip_address?: string | null
           mining_activated?: boolean
           mining_session_start?: string | null
           points?: number
           referral_code?: string
           referral_code_applied?: boolean
-          tasks_completed?: Json
+          task_discord_completed?: boolean
+          task_telegram_completed?: boolean
+          task_x_completed?: boolean
           wallet_address?: string
         }
         Relationships: []
@@ -94,7 +97,6 @@ export type Database = {
           wallet_address: string
           points: number
           referral_count: number
-          ip_address: string | null
         }[]
       }
       get_leaderboard: {

@@ -52,6 +52,12 @@ const TASK_ICONS: Record<TaskName, React.ReactNode> = {
     discord: <DiscordIcon className="h-8 w-8" />,
 };
 
+const TASK_URLS: Record<TaskName, string> = {
+    x: 'https://x.com/exnus', // Placeholder
+    telegram: 'https://t.me/exnus', // Placeholder
+    discord: 'https://discord.gg/exnus', // Placeholder
+};
+
 export default function Dashboard() {
     const { publicKey } = useWallet();
     const { toast } = useToast();
@@ -77,7 +83,6 @@ export default function Dashboard() {
             });
 
             const data = await response.json();
-
             if (!response.ok) {
                 const errorMessage = data.details || data.error || "An unknown error occurred while fetching user data.";
                 console.error("Fetch user data error:", errorMessage);
@@ -144,9 +149,12 @@ export default function Dashboard() {
 
     const handleVerifyTask = useCallback(async (taskName: TaskName) => {
         if (!publicKey || !userData) return;
+
+        window.open(TASK_URLS[taskName], '_blank');
+
         setVerifyingTask(taskName);
         try {
-            await new Promise(res => setTimeout(res, 1500));
+            await new Promise(res => setTimeout(res, 10000));
             const updatedTasks = { ...(userData.tasksCompleted || {}), [taskName]: true };
             const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
                 method: 'PUT',
@@ -154,11 +162,12 @@ export default function Dashboard() {
                 body: JSON.stringify({ tasksCompleted: updatedTasks }),
             });
             const data = await response.json();
-            if (!response.ok) throw new Error("Failed to update task");
+            if (!response.ok) throw new Error(data.error || "Failed to update task");
             setUserData(data);
-        } catch (error) {
+            toast({ title: 'Task Verified!', description: `You've completed the ${TASKS[taskName].name} task.` });
+        } catch (error: any) {
             console.error(error);
-            toast({ title: 'Verification Failed', variant: 'destructive' });
+            toast({ title: 'Verification Failed', description: error.message, variant: 'destructive' });
         } finally {
             setVerifyingTask(null);
         }
@@ -317,7 +326,7 @@ export default function Dashboard() {
             <TabsContent value="dashboard">
                  <DashboardContent
                     onboardingStep={onboardingStep}
-                    tasksCompleted={userData.tasksCompleted || {}}
+                    tasksCompleted={userData.tasksCompleted || { x: false, telegram: false, discord: false }}
                     verifyingTask={verifyingTask}
                     TASK_ICONS={TASK_ICONS}
                     TASKS={TASKS}

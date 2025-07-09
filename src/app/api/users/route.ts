@@ -6,7 +6,28 @@ import { keysToCamel } from '@/lib/utils';
 
 const INITIAL_POINTS = 0;
 
-// Helper function to get full user details, including referrals
+function transformUserForClient(userFromDb: any) {
+    const { 
+        task_x_completed, 
+        task_telegram_completed, 
+        task_discord_completed,
+        ...rest
+    } = userFromDb;
+
+    const userCamel = keysToCamel(rest);
+
+    return {
+        ...userCamel,
+        tasksCompleted: {
+            x: task_x_completed || false,
+            telegram: task_telegram_completed || false,
+            discord: task_discord_completed || false,
+        },
+        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+    };
+}
+
+
 async function fetchUserWithReferrals(wallet: string) {
     console.log(`[API][fetchUser] Attempting to fetch user data for wallet: ${wallet}`);
     const { data: userData, error: userError } = await supabaseAdmin
@@ -15,12 +36,10 @@ async function fetchUserWithReferrals(wallet: string) {
         .eq('wallet_address', wallet)
         .single();
     
-    // User not found is an expected case, return null.
     if (userError && userError.code === 'PGRST116') {
         console.log(`[API][fetchUser] User not found for wallet: ${wallet}. This is an expected case for new users.`);
         return null;
     }
-    // For other errors, we should throw them to be caught by the handler.
     if (userError) {
         console.error(`[API][fetchUser] Supabase error while fetching user data for ${wallet}:`, JSON.stringify(userError, null, 2));
         throw userError;
@@ -39,11 +58,10 @@ async function fetchUserWithReferrals(wallet: string) {
     }
     console.log(`[API][fetchUser] Successfully fetched ${referredUsers.length} referrals for ${wallet}.`);
     
-    const userCamel = keysToCamel(userData);
+    const clientUser = transformUserForClient(userData);
 
     return {
-        ...userCamel,
-        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+        ...clientUser,
         referrals: {
             count: referredUsers.length,
             referredUsers: referredUsers.map(ru => ({
@@ -75,7 +93,6 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[API][POST] User not found. Proceeding to create a new user for wallet: ${wallet}`);
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.ip || null;
         
         const newReferralCode = wallet.substring(0, 8).toUpperCase();
         
@@ -83,11 +100,12 @@ export async function POST(request: NextRequest) {
             wallet_address: wallet,
             points: INITIAL_POINTS,
             referral_code: newReferralCode,
-            tasks_completed: { x: false, telegram: false, discord: false },
+            task_x_completed: false,
+            task_telegram_completed: false,
+            task_discord_completed: false,
             mining_activated: false,
             mining_session_start: null,
             referral_code_applied: false,
-            ip_address: ip,
         };
 
         console.log(`[API][POST] Attempting to insert new user for wallet: ${wallet}`);
@@ -98,7 +116,7 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (insertError) {
-            if (insertError.code === '23505') { // unique_violation for race condition
+            if (insertError.code === '23505') { 
                 console.warn(`[API][POST] Race condition detected for wallet: ${wallet}. A user was created between check and insert. Refetching...`);
                 const userJustCreated = await fetchUserWithReferrals(wallet);
                 return NextResponse.json(userJustCreated, { status: 200 });
@@ -108,8 +126,10 @@ export async function POST(request: NextRequest) {
         }
         
         console.log(`[API][POST] Successfully created new user for wallet: ${wallet}`);
+        const clientUser = transformUserForClient(insertedData);
+        
         const responseUser = {
-            ...keysToCamel(insertedData),
+            ...clientUser,
             referrals: {
                 count: 0,
                 referredUsers: []

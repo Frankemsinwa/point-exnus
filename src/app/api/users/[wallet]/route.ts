@@ -4,6 +4,29 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { keysToCamel, keysToSnake } from '@/lib/utils';
 
+
+function transformUserForClient(userFromDb: any) {
+    const { 
+        task_x_completed, 
+        task_telegram_completed, 
+        task_discord_completed,
+        ...rest
+    } = userFromDb;
+
+    const userCamel = keysToCamel(rest);
+
+    return {
+        ...userCamel,
+        tasksCompleted: {
+            x: task_x_completed || false,
+            telegram: task_telegram_completed || false,
+            discord: task_discord_completed || false,
+        },
+        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+    };
+}
+
+
 async function fetchUserWithReferrals(wallet: string) {
     const { data: userData, error: userError } = await supabaseAdmin
         .from('users')
@@ -23,11 +46,10 @@ async function fetchUserWithReferrals(wallet: string) {
 
     if (referralsError) throw referralsError;
     
-    const userCamel = keysToCamel(userData);
+    const clientUser = transformUserForClient(userData);
 
     return {
-        ...userCamel,
-        miningSessionStart: userCamel.miningSessionStart ? new Date(userCamel.miningSessionStart).getTime() : null,
+        ...clientUser,
         referrals: {
             count: referredUsers.length,
             referredUsers: referredUsers.map(ru => ({
@@ -58,13 +80,17 @@ export async function PUT(request: Request, { params }: { params: { wallet: stri
   try {
     const updatedData = await request.json();
 
-    // Convert miningSessionStart from number back to ISO string for DB
+    if (updatedData.tasksCompleted) {
+        updatedData.taskXCompleted = updatedData.tasksCompleted.x;
+        updatedData.taskTelegramCompleted = updatedData.tasksCompleted.telegram;
+        updatedData.taskDiscordCompleted = updatedData.tasksCompleted.discord;
+        delete updatedData.tasksCompleted;
+    }
+
     if (updatedData.miningSessionStart) {
         updatedData.miningSessionStart = new Date(updatedData.miningSessionStart).toISOString();
     }
     
-    // The PUT request might contain the 'referrals' object, which is not a column in the 'users' table.
-    // We should remove it before trying to update the database.
     if ('referrals' in updatedData) {
         delete updatedData.referrals;
     }
@@ -84,7 +110,6 @@ export async function PUT(request: Request, { params }: { params: { wallet: stri
         return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
     }
 
-    // After updating, we refetch the user with referrals to return the full, consistent object.
     const fullUser = await fetchUserWithReferrals(wallet);
     return NextResponse.json(fullUser);
 
