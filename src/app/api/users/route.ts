@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[API][POST] User not found. Proceeding to create a new user for wallet: ${wallet}`);
-        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.ip;
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.ip || null;
         
         const newReferralCode = wallet.substring(0, 8).toUpperCase();
         

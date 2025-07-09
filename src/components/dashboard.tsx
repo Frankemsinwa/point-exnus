@@ -69,29 +69,28 @@ export default function Dashboard() {
 
     const fetchUserData = useCallback(async (wallet: string) => {
         setLoading(true);
-        try {
-            // A single API call to get or create the user.
-            // This logic is now handled on the server to prevent race conditions.
-            const response = await fetch('/api/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ wallet }),
+        const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wallet }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})); // Gracefully handle non-json responses
+            const errorMessage = errorData.details || errorData.error || "An unknown error occurred while fetching user data.";
+            console.error("Fetch user data error:", errorMessage);
+            toast({
+                title: 'Error Loading Data',
+                description: errorMessage,
+                variant: 'destructive',
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to load user data.');
-            }
-
-            setUserData(data);
-
-        } catch (error: any) {
-            console.error(error);
-            toast({ title: 'Error', description: error.message || 'Could not load user data.', variant: 'destructive' });
-        } finally {
             setLoading(false);
+            return;
         }
+
+        const data = await response.json();
+        setUserData(data);
+        setLoading(false);
     }, [toast]);
 
 
