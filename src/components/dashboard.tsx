@@ -69,28 +69,32 @@ export default function Dashboard() {
 
     const fetchUserData = useCallback(async (wallet: string) => {
         setLoading(true);
-        const response = await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wallet }),
-        });
+        try {
+            const response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wallet }),
+            });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({})); // Gracefully handle non-json responses
-            const errorMessage = errorData.details || errorData.error || "An unknown error occurred while fetching user data.";
-            console.error("Fetch user data error:", errorMessage);
-            toast({
+            const data = await response.json();
+
+            if (!response.ok) {
+                const errorMessage = data.details || data.error || "An unknown error occurred while fetching user data.";
+                console.error("Fetch user data error:", errorMessage);
+                throw new Error(errorMessage);
+            }
+            
+            setUserData(data);
+
+        } catch (error: any) {
+             toast({
                 title: 'Error Loading Data',
-                description: errorMessage,
+                description: error.message,
                 variant: 'destructive',
             });
+        } finally {
             setLoading(false);
-            return;
         }
-
-        const data = await response.json();
-        setUserData(data);
-        setLoading(false);
     }, [toast]);
 
 
@@ -103,9 +107,7 @@ export default function Dashboard() {
     useEffect(() => {
         if (!userData) return;
 
-        // Use a default empty object for tasksCompleted to prevent crashes
-        const tasks = userData.tasksCompleted || {};
-        const allTasksDone = Object.values(tasks).every(Boolean);
+        const allTasksDone = userData.tasksCompleted && Object.values(userData.tasksCompleted).every(Boolean);
 
         if (!allTasksDone) {
             setOnboardingStep('tasks');
@@ -315,7 +317,7 @@ export default function Dashboard() {
             <TabsContent value="dashboard">
                  <DashboardContent
                     onboardingStep={onboardingStep}
-                    tasksCompleted={userData.tasksCompleted}
+                    tasksCompleted={userData.tasksCompleted || {}}
                     verifyingTask={verifyingTask}
                     TASK_ICONS={TASK_ICONS}
                     TASKS={TASKS}
