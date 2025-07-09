@@ -41,9 +41,9 @@ type UserData = {
 };
 
 const TASKS: Record<TaskName, { name: string; cta: string; }> = {
-    x: { name: "Follow on X", cta: "Verify X" },
-    telegram: { name: "Join Telegram", cta: "Verify Telegram" },
-    discord: { name: "Join Discord", cta: "Verify Discord" },
+    x: { name: "Follow on X", cta: "Complete Task" },
+    telegram: { name: "Join Telegram", cta: "Complete Task" },
+    discord: { name: "Join Discord", cta: "Complete Task" },
 };
 
 const TASK_ICONS: Record<TaskName, React.ReactNode> = {
@@ -53,9 +53,9 @@ const TASK_ICONS: Record<TaskName, React.ReactNode> = {
 };
 
 const TASK_URLS: Record<TaskName, string> = {
-    x: 'https://x.com/exnus', // Placeholder
-    telegram: 'https://t.me/exnus', // Placeholder
-    discord: 'https://discord.gg/exnus', // Placeholder
+    x: 'https://x.com/exnusprotocol?t=WgNg7R13Pwu-w_syhOQSvQ&s=09',
+    telegram: 'https://t.me/Exnusprotocol',
+    discord: 'https://discord.gg/27W8A8Ss',
 };
 
 export default function Dashboard() {
@@ -154,7 +154,7 @@ export default function Dashboard() {
 
         setVerifyingTask(taskName);
         try {
-            await new Promise(res => setTimeout(res, 10000));
+            await new Promise(res => setTimeout(res, 15000));
             const updatedTasks = { ...(userData.tasksCompleted || {}), [taskName]: true };
             const response = await fetch(`/api/users/${publicKey.toBase58()}`, {
                 method: 'PUT',
